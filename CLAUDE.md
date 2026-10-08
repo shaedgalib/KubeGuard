@@ -44,12 +44,12 @@ Research project: Kubernetes security lab, dataset, detection, eBPF, LLM triage.
 
 ## Git workflow
 
-- Branches: `main` (stable, verified work only) and `dev` (integration).
-- Every change starts on a feature branch cut from `dev`, named `<type>/<unit>-<short-name>`, e.g. `feat/p0-u4-libvirt`, `docs/p0-literature`, `fix/p1-cilium-values`.
-- Merge feature branches into `dev` first (PR or `--no-ff` merge). Check the unit's acceptance check on `dev`.
-- Promote `dev` to `main` only when the check passes. Tag phase and gate milestones on `main` (`p0-done`, `g0`, ...) and experiments as `exp/<phase>-<id>`.
-- Never commit directly to `main`. Avoid committing directly to `dev`.
-- Git identity for this repo: user `shaedgalib`, email `bsse1206@iit.du.ac.bd` (local config).
+- Two long-lived branches: `main` (production, verified work only) and `dev` (integration).
+- Every change starts on a feature branch cut from `main`, named `<type>/<unit>-<short-name>`, e.g. `feat/p0-u4-libvirt`, `docs/p0-literature`, `fix/p1-cilium-values`.
+- Flow: `main` -> feature branch -> merge into `dev` (PR or `--no-ff`) -> check the unit's acceptance check on `dev` -> promote `dev` to `main` (`--no-ff`).
+- Tag phase and gate milestones on `main` (`p0-done`, `g0`, ...) and experiments as `exp/<phase>-<id>`.
+- Never commit directly to `main` or `dev`. Delete feature branches after they reach `main`.
+- Git identity for this repo: user `shaedgalib`, email `bsse1206@iit.du.ac.bd` (local config). The remote uses SSH; make sure the key in use belongs to `shaedgalib`, not another account.
 
 ## Notes
 
