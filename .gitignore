@@ -1,0 +1,10 @@
+*.kubeconfig
+kubeconfig*
+*.pcap
+*.qcow2
+*.img
+*.key
+*.pem
+.env
+__pycache__/
+data/raw/
