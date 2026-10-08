@@ -1,6 +1,6 @@
-# NetGuard-K8s: AI-DLC Master Plan
+# KubeGuard: AI-DLC Master Plan
 
-Source: [NetGuard-K8s_Research_Plan.md](../NetGuard-K8s_Research_Plan.md) v1.0. This document restructures that plan under the AI-Driven Development Lifecycle (AI-DLC). It has no calendar. Progress is driven by **bolts** (short work cycles) and **gates** (go/no-go decisions), not by weeks.
+Source: [KubeGuard_Research_Plan.md](../KubeGuard_Research_Plan.md) v1.0. This document restructures that plan under the AI-Driven Development Lifecycle (AI-DLC). It has no calendar. Progress is driven by **bolts** (short work cycles) and **gates** (go/no-go decisions), not by weeks.
 
 Status legend: `[ ]` not started, `[~]` in progress, `[x]` done.
 

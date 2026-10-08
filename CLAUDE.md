@@ -1,6 +1,6 @@
-# KubeGuard (NetGuard-K8s): conventions for the AI assistant
+# KubeGuard: conventions for the AI assistant
 
-Research project: Kubernetes security lab, dataset, detection, eBPF, LLM triage. Plan: [docs/AIDLC_Master_Plan.md](docs/AIDLC_Master_Plan.md). Source plan: [NetGuard-K8s_Research_Plan.md](NetGuard-K8s_Research_Plan.md).
+Research project: Kubernetes security lab, dataset, detection, eBPF, LLM triage. Plan: [docs/AIDLC_Master_Plan.md](docs/AIDLC_Master_Plan.md). Source plan: [KubeGuard_Research_Plan.md](KubeGuard_Research_Plan.md).
 
 ## Method (AI-DLC)
 

@@ -1,4 +1,4 @@
-# NetGuard-K8s
+# KubeGuard
 
 **From Network Anomaly Detection to Cloud-Native Security: Intrusion Detection, eBPF Observability and LLM-Assisted Defense on Bare-Metal Kubernetes**
 
@@ -7,7 +7,7 @@ Research plan and working document. Author: Shaed Shad Ullah Galib. Version 1.0,
 
 ## 1. Overview
 
-NetGuard-K8s extends your undergraduate NetGuard project (network performance monitoring and ML anomaly detection) into a postgraduate research programme on cloud-native security. You build a bare-metal Kubernetes lab, harden it, generate a labeled dataset of attacks, build detection on top of it, add eBPF-based observability, and finally use LLMs to triage and explain what the detectors find.
+KubeGuard extends your undergraduate NetGuard project (network performance monitoring and ML anomaly detection) into a postgraduate research programme on cloud-native security. You build a bare-metal Kubernetes lab, harden it, generate a labeled dataset of attacks, build detection on top of it, add eBPF-based observability, and finally use LLMs to triage and explain what the detectors find.
 
 
 ### Goal
@@ -386,7 +386,7 @@ Fall 2027 deadlines for US programmes are typically around December 2026 to Janu
 
 - A public GitHub repo with a reproducible bare-metal Kubernetes lab and ADRs.
 - A hardening report (if Phase 2 finishes early) or a work-in-progress version.
-- The literature matrix, a written research plan and a clear statement of purpose built on the NetGuard to NetGuard-K8s story.
+- The literature matrix, a written research plan and a clear statement of purpose built on the NetGuard to KubeGuard story.
 - No peer-reviewed paper yet. Do not promise one in your applications; describe the work as in progress.
 
 To improve the odds, consider compressing Phase 1 into 3 weeks if you can, and finishing Phase 2 before the early deadlines. Many European and Canadian positions run on rolling deadlines, which fits this timeline better.
