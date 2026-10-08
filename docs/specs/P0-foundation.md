@@ -81,7 +81,7 @@ Each entry records the objective, rationale, deliverables, implementation, verif
 
 **Verification.** The three templates exist. Each has one example entry: ADR-001 for the ADR template and a marked dry-run row in `experiments/log.md`. The specification template is exercised by this document.
 
-**Status.** Done. Templates in commit `9990bfb`, example entries on branch `docs/p0-u3-log-example`.
+**Status.** Done. Templates in commit `9990bfb`, example entries on branch `docs/p0-updates`.
 
 ### P0-U4: KVM and libvirt installation
 
