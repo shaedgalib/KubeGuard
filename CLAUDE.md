@@ -49,6 +49,7 @@ Research project: Kubernetes security lab, dataset, detection, eBPF, LLM triage.
 - Flow: `main` -> feature branch -> merge into `dev` (PR or `--no-ff`) -> check the unit's acceptance check on `dev` -> promote `dev` to `main` (`--no-ff`).
 - Tag phase and gate milestones on `main` (`p0-done`, `g0`, ...) and experiments as `exp/<phase>-<id>`.
 - Never commit directly to `main` or `dev`. Delete feature branches after they reach `main`.
+- Commit messages and PR descriptions carry no AI attribution: no `Co-Authored-By: Claude` trailer, no "Generated with Claude Code" line. Commits are authored by the user only.
 - Git identity for this repo: user `shaedgalib`, email `bsse1206@iit.du.ac.bd` (local config). The remote uses SSH; make sure the key in use belongs to `shaedgalib`, not another account.
 
 ## Notes

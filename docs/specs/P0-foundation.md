@@ -24,7 +24,7 @@ Out of scope: Kubernetes install (P1), any attack work.
 | P0-U1 | Repo skeleton, README, Makefile | Tree exists, `make help` runs | [x] |
 | P0-U2 | CLAUDE.md | Covers isolation, kubeconfig, snapshots, no-AI-numbers | [x] |
 | P0-U3 | Spec, ADR, experiment-log templates | Templates present | [x] |
-| P0-U4 | KVM/libvirt installed | `virt-host-validate` passes | [ ] |
+| P0-U4 | KVM/libvirt installed | `virt-host-validate` passes | [x] |
 | P0-U5 | Isolated libvirt network | VMs reach each other, cannot reach home LAN (tested) | [ ] |
 | P0-U6 | Ubuntu 24.04 cloud image, base template, snapshot | Boots, snapshot restores | [ ] |
 | P0-U7 | Zotero and literature matrix | 15+ entries | [ ] |
