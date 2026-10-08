@@ -1,7 +1,5 @@
 # KubeGuard
 
-*Formerly NetGuard-K8s, the cloud-native successor to the NetGuard network anomaly detection project.*
-
 From network anomaly detection to cloud-native security: intrusion detection, eBPF observability and LLM-assisted defense on bare-metal Kubernetes.
 
 Status: Phase 0 (foundation).
