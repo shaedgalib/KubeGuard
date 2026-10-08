@@ -25,7 +25,7 @@ Out of scope: Kubernetes install (P1), any attack work.
 | P0-U2 | CLAUDE.md | Covers isolation, kubeconfig, snapshots, no-AI-numbers | [x] |
 | P0-U3 | Spec, ADR, experiment-log templates | Templates present | [x] |
 | P0-U4 | KVM/libvirt installed | `virt-host-validate` passes | [x] |
-| P0-U5 | Isolated libvirt network | VMs reach each other, cannot reach home LAN (tested) | [ ] |
+| P0-U5 | Isolated libvirt network | VMs reach each other, cannot reach home LAN (tested) | [~] |
 | P0-U6 | Ubuntu 24.04 cloud image, base template, snapshot | Boots, snapshot restores | [ ] |
 | P0-U7 | Zotero and literature matrix | 15+ entries | [ ] |
 | P0-U8 | RQ v0 and gap analysis | `docs/specs/research-questions.md` | [ ] |
@@ -102,6 +102,26 @@ Each entry records the objective, rationale, deliverables, implementation, verif
 
 **Status.** Done. Branch `feat/p0-u4-libvirt`.
 
+### P0-U5: Isolated libvirt network
+
+**Objective.** Provide a virtual network for the lab guests that has no route to the home LAN or the internet.
+
+**Rationale.** Attack scenarios run inside the lab. Isolation must hold by construction rather than depend on firewall rules. The design choice and the build-time internet policy are recorded in [ADR-001](../adr/ADR-001-lab-network-isolation.md).
+
+**Deliverables.**
+- `infra/libvirt/kg-lab-net.xml`: libvirt network `kg-lab`. Bridge `virbr-kg`, subnet `10.77.0.0/24`, gateway `10.77.0.1`, DHCP range `10.77.0.100-10.77.0.199`. The definition has no `<forward>` element, so libvirt installs no NAT and no routing for it.
+- `infra/libvirt/test-isolation.sh`: acceptance script. Host-side checks cover network state, absence of `<forward>`, subnet and absence of a masquerade rule. When given two VM addresses and an SSH user, it also checks that VM A reaches VM B and cannot reach the LAN gateway or `1.1.1.1`.
+- Makefile targets `net-up`, `net-down`, `net-test`.
+- [ADR-001](../adr/ADR-001-lab-network-isolation.md) and evidence [docs/reports/P0-U5-network-evidence.md](../reports/P0-U5-network-evidence.md).
+
+**Implementation.** The subnet was chosen to avoid the home LAN (`172.16.212.0/23`, `172.16.214.0/23`), Docker (`172.17.0.0/16` to `172.21.0.0/16`) and the default libvirt network (`192.168.122.0/24`). `make net-up` runs `virsh net-define`, `net-autostart` and `net-start`. `make net-test` runs the acceptance script.
+
+**Verification.** Host-side checks pass: network active, no `<forward>`, subnet `10.77.0.0/24`, no masquerade rule. In-VM checks are pending the guests created in P0-U6.
+
+**Reference comparison.** The network corresponds to a VPC subnet with no internet gateway, no NAT gateway and no peering, whose route table contains only the local route. The isolation script corresponds to a reachability analysis that finds no path to the LAN.
+
+**Status.** In progress. Branch `feat/p0-u5-network`. Host-side checks verified on 2026-10-09. In-VM checks are completed in P0-U6, after which the status becomes done.
+
 ## Initial environment
 
 - The CPU reports hardware virtualization flags (`svm`), and the `kvm` and `kvm_amd` kernel modules are loaded.
@@ -126,6 +146,6 @@ G0: gap is real and RQs are final. Record in `docs/adr/ADR-G0-literature-gap.md`
 Items found in the AI-DLC review of Phase 0. Each is a work item.
 
 1. Approval: this specification has status `draft` and has not been approved, although construction has started. Approval is required.
-2. P0-U3: one example entry in `docs/adr/` and one in `experiments/log.md` are still to be added.
-3. P0-U5: the policy for internet access during image builds must be documented and tested. This requires an ADR covering the isolation design and build-time access.
+2. P0-U3: [ADR-001](../adr/ADR-001-lab-network-isolation.md) serves as the example ADR entry. One example entry in `experiments/log.md` is still to be added.
+3. P0-U5: the build-time internet policy is documented in ADR-001. The `kg-build` network and the in-VM isolation tests are completed in P0-U6.
 4. Unit details: P0-U5 and later units receive their detail entry when their acceptance check passes.
