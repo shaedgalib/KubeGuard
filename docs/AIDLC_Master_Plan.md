@@ -3,6 +3,7 @@
 Source: [KubeGuard_Research_Plan.md](../KubeGuard_Research_Plan.md) v1.0. This document restructures that plan under the AI-Driven Development Lifecycle (AI-DLC). It has no calendar. Progress is driven by **bolts** (short work cycles) and **gates** (go/no-go decisions), not by weeks.
 
 Status legend: `[ ]` not started, `[~]` in progress, `[x]` done.
+Unit status is kept in sync with the phase spec in `docs/specs/`. The spec also holds the per-unit details (what was created, how to verify, bolt notes).
 
 
 ## 1. How AI-DLC is applied here
@@ -114,10 +115,10 @@ Each phase lists its units in dependency order. Unit IDs are stable references f
 
 | Unit | Description | Acceptance check | Status |
 |---|---|---|---|
-| P0-U1 | Repo skeleton per research plan section 3, README, Makefile skeleton | Directory tree exists, `make help` runs | [ ] |
-| P0-U2 | `CLAUDE.md` with lab rules, layout, commands | Covers isolation, kubeconfig, snapshot, no-AI-numbers rules | [ ] |
-| P0-U3 | Spec, ADR and experiment-log templates | Templates in `docs/`, one dry-run entry each | [ ] |
-| P0-U4 | KVM/libvirt installed, virtualization verified | `virt-host-validate` passes | [ ] |
+| P0-U1 | Repo skeleton per research plan section 3, README, Makefile skeleton | Directory tree exists, `make help` runs | [x] |
+| P0-U2 | `CLAUDE.md` with lab rules, layout, commands | Covers isolation, kubeconfig, snapshot, no-AI-numbers rules | [x] |
+| P0-U3 | Spec, ADR and experiment-log templates | Templates in `docs/`, one dry-run entry each | [x] |
+| P0-U4 | KVM/libvirt installed, virtualization verified | `virt-host-validate` passes | [x] |
 | P0-U5 | Isolated libvirt network, no route to home or office LAN | VMs reach each other, `ping` to LAN gateway and internet-only-as-needed policy documented and tested | [ ] |
 | P0-U6 | Ubuntu 24.04 cloud image, base VM template, snapshot | Base image boots and snapshot restores | [ ] |
 | P0-U7 | Zotero and literature matrix (paper, data, method, attack coverage, limitations) | 15+ entries across K8s anomaly detection, eBPF observability, LLMs for SecOps | [ ] |
