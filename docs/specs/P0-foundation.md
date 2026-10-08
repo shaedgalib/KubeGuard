@@ -79,9 +79,9 @@ Each entry records the objective, rationale, deliverables, implementation, verif
 - `docs/adr/_template.md`: context, options considered, decision, consequences.
 - `experiments/log.md`: table with date, git commit, configuration hash, dataset version, hypothesis, result and notes.
 
-**Verification.** The three templates exist. The master plan additionally requires one example entry in each (open, see Review notes).
+**Verification.** The three templates exist. Each has one example entry: ADR-001 for the ADR template and a marked dry-run row in `experiments/log.md`. The specification template is exercised by this document.
 
-**Status.** Templates done, commit `9990bfb`. Example entries pending.
+**Status.** Done. Templates in commit `9990bfb`, example entries on branch `docs/p0-updates`.
 
 ### P0-U4: KVM and libvirt installation
 
@@ -146,6 +146,5 @@ G0: gap is real and RQs are final. Record in `docs/adr/ADR-G0-literature-gap.md`
 Items found in the AI-DLC review of Phase 0. Each is a work item.
 
 1. Approval: this specification has status `draft` and has not been approved, although construction has started. Approval is required.
-2. P0-U3: [ADR-001](../adr/ADR-001-lab-network-isolation.md) serves as the example ADR entry. One example entry in `experiments/log.md` is still to be added.
-3. P0-U5: the build-time internet policy is documented in ADR-001. The `kg-build` network and the in-VM isolation tests are completed in P0-U6.
-4. Unit details: P0-U5 and later units receive their detail entry when their acceptance check passes.
+2. P0-U5: the build-time internet policy is documented in ADR-001. The `kg-build` network and the in-VM isolation tests are completed in P0-U6.
+3. Unit details: P0-U5 and later units receive their detail entry when their acceptance check passes.
