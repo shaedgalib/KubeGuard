@@ -46,10 +46,10 @@ Research project: Kubernetes security lab, dataset, detection, eBPF, LLM triage.
 
 - Two long-lived branches: `main` (production, verified work only) and `dev` (integration and testing).
 - Every change starts on a feature branch cut from `main`, named `<type>/<unit>-<short-name>`, e.g. `feat/p0-u4-libvirt`, `docs/p0-literature`, `fix/p1-cilium-values`.
-- Flow: cut the feature branch from `main`, commit there, merge the feature branch into `dev` (`--no-ff`) and check the unit's acceptance check on `dev`. Only if it works, merge the same feature branch into `main` (`--no-ff`). Never merge `dev` into `main`, because `dev` may hold unverified features.
+- Flow: cut the feature branch from `main`, push it to `origin` right away, commit there, merge the feature branch into `dev` (`--no-ff`) and check the unit's acceptance check on `dev`. Only if it works, merge the same feature branch into `main` (`--no-ff`). Never merge `dev` into `main`, because `dev` may hold unverified features.
 - If a feature fails on `dev`, fix it on the feature branch and merge into `dev` again. `dev` may be reset to `main` to drop failed work.
 - Tag phase and gate milestones on `main` (`p0-done`, `g0`, ...) and experiments as `exp/<phase>-<id>`.
-- Never commit directly to `main` or `dev`. Delete feature branches after they reach `main`.
+- Never commit directly to `main` or `dev`. Delete feature branches (local and remote) only after they reach `main`.
 - Commit messages and PR descriptions carry no AI attribution: no `Co-Authored-By: Claude` trailer, no "Generated with Claude Code" line. Commits are authored by the user only.
 - Git identity for this repo: user `shaedgalib`, email `bsse1206@iit.du.ac.bd` (local config). The remote uses SSH; make sure the key in use belongs to `shaedgalib`, not another account.
 
