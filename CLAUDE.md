@@ -40,16 +40,17 @@ Research project: Kubernetes security lab, dataset, detection, eBPF, LLM triage.
 
 ## Commands
 
-`make help` lists targets. Targets are added as phases land (`up`, `down`, `reset`, `cluster` in P1).
+`make help` lists targets. Available: `net-up`, `net-down`, `net-test` (isolated lab network, P0). More are added as phases land (`up`, `down`, `reset`, `cluster` in P1).
 
 ## Git workflow
 
 - Two long-lived branches: `main` (production, verified work only) and `dev` (integration and testing).
 - Every change starts on a feature branch cut from `main`, named `<type>/<unit>-<short-name>`, e.g. `feat/p0-u4-libvirt`, `docs/p0-literature`, `fix/p1-cilium-values`.
-- Flow: cut the feature branch from `main`, commit there, merge the feature branch into `dev` (`--no-ff`) and check the unit's acceptance check on `dev`. Only if it works, merge the same feature branch into `main` (`--no-ff`). Never merge `dev` into `main`, because `dev` may hold unverified features.
+- Flow: cut the feature branch from `main`, push it to `origin` right away, commit there, merge the feature branch into `dev` (`--no-ff`) and check the unit's acceptance check on `dev`. Only if it works, merge the same feature branch into `main` (`--no-ff`). Never merge `dev` into `main`, because `dev` may hold unverified features.
 - If a feature fails on `dev`, fix it on the feature branch and merge into `dev` again. `dev` may be reset to `main` to drop failed work.
 - Tag phase and gate milestones on `main` (`p0-done`, `g0`, ...) and experiments as `exp/<phase>-<id>`.
-- Never commit directly to `main` or `dev`. Delete feature branches after they reach `main`.
+- The assistant asks before running commands, before every `git push` and before every merge, and never merges into `main` without explicit permission.
+- Never commit directly to `main` or `dev`. Do not delete feature branches, local or remote; they stay as history.
 - Commit messages and PR descriptions carry no AI attribution: no `Co-Authored-By: Claude` trailer, no "Generated with Claude Code" line. Commits are authored by the user only.
 - Git identity for this repo: user `shaedgalib`, email `bsse1206@iit.du.ac.bd` (local config). The remote uses SSH; make sure the key in use belongs to `shaedgalib`, not another account.
 
