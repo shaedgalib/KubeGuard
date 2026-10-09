@@ -121,7 +121,7 @@ Each phase lists its units in dependency order. Unit IDs are stable references f
 | P0-U4 | KVM/libvirt installed, virtualization verified | `virt-host-validate` passes | [x] |
 | P0-U5 | Isolated libvirt network, no route to home or office LAN | VMs reach each other, `ping` to LAN gateway and internet-only-as-needed policy documented and tested | [x] |
 | P0-U6 | Ubuntu 24.04 cloud image, base VM template, snapshot | Base image boots and snapshot restores | [x] |
-| P0-U7 | Zotero and literature matrix (paper, data, method, attack coverage, limitations) | 15+ entries across K8s anomaly detection, eBPF observability, LLMs for SecOps | [ ] |
+| P0-U7 | Literature matrix (paper, data, method, attack coverage, limitations) | 15+ entries across K8s anomaly detection, eBPF observability, LLMs for SecOps | [x] |
 | P0-U8 | Research questions v0 and gap analysis | `docs/specs/research-questions.md` written | [ ] |
 | P0-U9 | Phase 1 spec | `docs/specs/P1-cluster.md` approved | [ ] |
 | P0-U10 | Decision on AWS cert renewals and CKS side track | One-paragraph ADR | [ ] |
