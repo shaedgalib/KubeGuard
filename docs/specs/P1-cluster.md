@@ -53,14 +53,14 @@ Names follow [docs/naming.md](../naming.md). Accepted by the researcher on 2026-
 | P1-U2 | Ansible role `common` (swap off, kernel modules, sysctl) | Idempotent re-run reports no changes | `feat/p1-nodes` | [x] |
 | P1-U3 | Ansible role `containerd` | `crictl info` OK on all nodes | `feat/p1-nodes` | [x] |
 | P1-U4 | Ansible roles kubeadm init and join | 3 nodes join, API reachable | `feat/p1-nodes` | [x] |
-| P1-U5 | Cilium with kube-proxy replacement, Hubble relay and UI | `cilium status` healthy, flows visible | `feat/p1-networking` | [ ] |
-| P1-U6 | MetalLB (L2 pool), ingress or Gateway API, local-path storage | LoadBalancer IP assigned, PVC binds | `feat/p1-networking` | [ ] |
+| P1-U5 | Cilium with kube-proxy replacement, Hubble relay and UI | `cilium status` healthy, flows visible | `feat/p1-cluster-networking` | [ ] |
+| P1-U6 | MetalLB (L2 pool), ingress or Gateway API, local-path storage | LoadBalancer IP assigned, PVC binds | `feat/p1-cluster-networking` | [ ] |
 | P1-U7 | kube-prometheus-stack with short retention | Grafana dashboards load, RAM within budget | `feat/p1-apps-monitoring` | [ ] |
 | P1-U8 | Sample app via MetalLB and ingress, flows seen in Hubble | Request from host succeeds, flow appears | `feat/p1-apps-monitoring` | [ ] |
 | P1-U9 | etcd snapshot and restore drill | Restore tested, steps in runbook | `feat/p1-drills` | [ ] |
 | P1-U10 | Node drain, node failure and rejoin drills | Cluster recovers, steps in runbook | `feat/p1-drills` | [ ] |
 | P1-U11 | `make up`, `make down`, `make reset`, `make cluster` | Clean VMs to Ready cluster with one command | `feat/p1-automation` | [ ] |
-| P1-U12 | ADRs: CNI, load balancer, ingress, storage | 4 ADRs committed | `feat/p1-networking` | [ ] |
+| P1-U12 | ADRs: CNI, load balancer, ingress, storage | 4 ADRs committed | `feat/p1-cluster-networking` | [ ] |
 | P1-U13 | Rebuild time measured | Documented, target under 40 minutes | `feat/p1-automation` | [ ] |
 | P1-U14 | Phase 2 spec | `docs/specs/P2-hardening.md` approved | `docs/p1-p2-spec` | [ ] |
 
@@ -71,7 +71,7 @@ Related units share one feature branch. Each branch is cut from `main`, merged i
 | Branch | Units | Done when |
 |---|---|---|
 | `feat/p1-nodes` | P1-U1 to U4 | 3 nodes Ready, API reachable, `common` role idempotent |
-| `feat/p1-networking` | P1-U5, U6, U12 | Hubble healthy, LoadBalancer IP assigned, PVC binds, 4 ADRs committed |
+| `feat/p1-cluster-networking` | P1-U5, U6, U12 | Hubble healthy, LoadBalancer IP assigned, PVC binds, 4 ADRs committed |
 | `feat/p1-apps-monitoring` | P1-U7, U8 | Dashboards load, request from host succeeds, flow visible in Hubble |
 | `feat/p1-drills` | P1-U9, U10 | etcd restore tested, node drills done, both runbooks written |
 | `feat/p1-automation` | P1-U11, U13 | `make cluster` from clean VMs, rebuild time documented |
@@ -197,6 +197,7 @@ No gate closes Phase 1. Gate G1 follows Phase 2. Pass condition for the phase: f
 Changes to the approved plan during Phase 1. One line each: date, decision number, change, reason.
 
 2026-10-09 | workflow | The 14 units are grouped into six branches (see Branches and the Branch column) | Fewer branches, same acceptance checks per unit
+2026-10-10 | workflow | The networking branch is named `feat/p1-cluster-networking` (was `feat/p1-networking`) | The name says what the branch builds: the cluster networking
 
 ## Retrospective
 
