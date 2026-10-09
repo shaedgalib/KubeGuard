@@ -48,7 +48,7 @@ Research project: Kubernetes security lab, dataset, detection, eBPF, LLM triage.
 ## Git workflow
 
 - Two long-lived branches: `main` (production, verified work only) and `dev` (integration and testing).
-- Every change starts on a feature branch cut from `main`, named `<type>/<unit>-<short-name>`, e.g. `feat/p0-u4-libvirt`, `docs/p0-literature`, `fix/p1-cilium-values`.
+- Every change starts on a feature branch cut from `main`, named `<type>/<scope>-<short-name>`, e.g. `feat/p0-u4-libvirt`, `feat/p1-nodes`, `docs/p0-updates`. One branch may cover a group of related units; the phase spec lists the branch for each unit.
 - Flow: cut the feature branch from `main`, push it to `origin` right away, commit there, merge the feature branch into `dev` (`--no-ff`) and check the unit's acceptance check on `dev`. Only if it works, merge the same feature branch into `main` (`--no-ff`). Never merge `dev` into `main`, because `dev` may hold unverified features.
 - If a feature fails on `dev`, fix it on the feature branch and merge into `dev` again. `dev` may be reset to `main` to drop failed work.
 - Tag phase and gate milestones on `main` (`p0-done`, `g0`, ...) and experiments as `exp/<phase>-<id>`.
