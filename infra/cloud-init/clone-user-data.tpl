@@ -1,7 +1,7 @@
 #cloud-config
-# Template for lab clones of kg-base (see infra/libvirt/clone-test-vms.sh).
+# Template for lab clones of kg-template-vm (see infra/libvirt/test-isolation-vms.sh).
 # The clone is a new cloud-init instance, so network config is regenerated for
-# its new MAC address. No package work and no power-off: kg-lab has no internet.
+# its new MAC address. No package work and no power-off: kg-isolated-network has no internet.
 hostname: @NAME@
 manage_etc_hosts: true
 users:

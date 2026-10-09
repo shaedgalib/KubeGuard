@@ -17,7 +17,7 @@ Phase 1 is an engineering phase and has no research hypothesis. It supports the 
 ## Scope
 
 In scope:
-- Three VMs created from the P0-U6 base image (`kg-base`) and cloud-init.
+- Three VMs created from the P0-U6 base image (`kg-template-vm`) and cloud-init.
 - Ansible roles for node preparation, containerd, kubeadm init and join.
 - Cilium with kube-proxy replacement, Hubble relay and UI.
 - MetalLB (L2), an ingress or Gateway API controller, local-path storage.
@@ -31,16 +31,16 @@ Out of scope: hardening (Phase 2), workloads and attacks (Phase 3), detection (P
 
 ## Design decisions to confirm
 
-Accepted by the researcher on 2026-10-09 as the working plan for Phase 1. Any change found necessary during the build is recorded under "Amendments" below, and becomes an ADR where it is a major choice. Each decision also becomes an ADR or a note in the relevant unit.
+Names follow [docs/naming.md](../naming.md). Accepted by the researcher on 2026-10-09 as the working plan for Phase 1. Any change found necessary during the build is recorded under "Amendments" below, and becomes an ADR where it is a major choice. Each decision also becomes an ADR or a note in the relevant unit.
 
 | # | Decision | Proposed default | Why |
 |---|---|---|---|
 | D1 | Node sizing | Start minimal: control plane 2 vCPU and 2 GiB, workers 2 vCPU and 2 GiB each. Scale to the plan sizes (4 GiB, 8 GiB, 8 GiB) only when a unit needs it (P1-U7 monitoring at the latest) | kubeadm preflight requires at least 2 vCPU on the control plane; the host has limited free RAM; the researcher asked to start small |
-| D2 | Node addressing | Fixed addresses from DHCP reservations in `kg-lab-net.xml` (for example `10.77.0.10` to `.12`), outside the DHCP pool `.100-.199` | Stable names and addresses for kubeadm and Ansible |
+| D2 | Node addressing | Fixed addresses from DHCP reservations in `kg-isolated-network.xml` (for example `10.77.0.10` to `.12`), outside the DHCP pool `.100-.199` | Stable names and addresses for kubeadm and Ansible |
 | D3 | Cluster CIDRs | Explicit pod and service CIDRs that do not overlap `10.77.0.0/24`, `10.78.0.0/24`, `172.16.212.0/23`, `172.16.214.0/23`, `172.17.0.0/16` to `172.21.0.0/16`, `192.168.122.0/24` | Cilium's default pool is large and can overlap; choose and record before `kubeadm init` |
-| D4 | MetalLB pool | A range inside `kg-lab` above the DHCP pool, for example `10.77.0.200-10.77.0.220` | Reachable from the host on the bridge `virbr-kg` |
-| D5 | Internet during build | Nodes get a second interface on `kg-build` only while packages and images are fetched, then it is detached ([ADR-001](../adr/ADR-001-lab-network-isolation.md)). Cilium and kubelet are pinned to the `kg-lab` interface | Keeps the attack network isolated and the build repeatable |
-| D6 | Image supply | Pull from public registries during the build window; evaluate preloading or a local registry if pulls are slow or rate-limited | Offline operation after detaching `kg-build` |
+| D4 | MetalLB pool | A range inside `kg-isolated-network` above the DHCP pool, for example `10.77.0.200-10.77.0.220` | Reachable from the host on the bridge `kg-isolated-br` |
+| D5 | Internet during build | Nodes get a second interface on `kg-internet-access-network` only while packages and images are fetched, then it is detached ([ADR-001](../adr/ADR-001-lab-network-isolation.md)). Cilium and kubelet are pinned to the `kg-isolated-network` interface | Keeps the attack network isolated and the build repeatable |
+| D6 | Image supply | Pull from public registries during the build window; evaluate preloading or a local registry if pulls are slow or rate-limited | Offline operation after detaching `kg-internet-access-network` |
 | D7 | Ingress | ingress-nginx or Cilium Gateway API, decided by ADR in P1-U12 | Plan allows either |
 | D8 | Versions | Pin Kubernetes, containerd, Cilium, MetalLB and the monitoring stack in one `versions` file, checked against each project's release page when P1-U2 starts | Reproducibility; versions are not fixed in this draft |
 | D9 | Ansible inventory | Static inventory generated from the node address table | Simple and repeatable |
@@ -90,7 +90,7 @@ Work order: U1 to U4, then U5, U6 and U8 together, then U7, U9 and U10, then U11
 ## Risks
 
 - **RAM and disk.** The host is shared and has limited free memory. Mitigation: start with minimal sizes (D1), short Prometheus retention, thin disks, and measure idle use before scaling.
-- **Two networks.** Build-time internet (`kg-build`) and the isolated `kg-lab` must not blur. Mitigation: D5, the isolation test from P0-U5 re-run after the build, and the interface check in P1-U5.
+- **Two networks.** Build-time internet (`kg-internet-access-network`) and the isolated `kg-isolated-network` must not blur. Mitigation: D5, the isolation test from P0-U5 re-run after the build, and the interface check in P1-U5.
 - **Image pulls.** Public registries may rate-limit or be slow. Mitigation: D6.
 - **Kernel features.** eBPF-based Cilium and later phases need a guest kernel with BTF. Mitigation: check `/sys/kernel/btf/vmlinux` on a node in P1-U1.
 - **Rebuild time.** Target is under 40 minutes. Mitigation: cache images, keep the base image current, measure in U13 and shorten the slowest step.

@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# P0-U5 acceptance test for the kg-lab network.
+# P0-U5 acceptance test for the kg-isolated-network.
 # Usage: test-isolation.sh                      static checks only (no VMs needed)
 #        test-isolation.sh <vmA-ip> <vmB-ip> <ssh-user>   adds in-VM checks
 set -u
-NET=kg-lab
+NET=kg-isolated-network
 V="virsh -c qemu:///system"
 fail=0
 ok()   { echo "PASS  $*"; }
@@ -13,7 +13,7 @@ bad()  { echo "FAIL  $*"; fail=1; }
 $V net-info "$NET" 2>/dev/null | grep -q 'Active:.*yes' && ok "network $NET is active" || bad "network $NET not active"
 $V net-dumpxml "$NET" | grep -q '<forward' && bad "network has a <forward> element (not isolated)" || ok "no <forward> element"
 $V net-dumpxml "$NET" | grep -q "address='10.77.0.1'" && ok "subnet is 10.77.0.0/24" || bad "unexpected subnet"
-if sudo nft list ruleset 2>/dev/null | grep -q 'virbr-kg.*masquerade\|masquerade.*10\.77\.0'; then
+if sudo nft list ruleset 2>/dev/null | grep -q 'kg-isolated-br.*masquerade\|masquerade.*10\.77\.0'; then
   bad "masquerade rule exists for 10.77.0.0/24"
 else
   ok "no NAT/masquerade rule for the lab subnet"

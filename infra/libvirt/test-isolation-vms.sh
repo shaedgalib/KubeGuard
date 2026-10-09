@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# Clone kg-base into two test VMs on the isolated kg-lab network and run the
+# Clone kg-template-vm into two test VMs on the isolated kg-isolated-network and run the
 # P0-U5 in-VM isolation checks. Usage: clone-test-vms.sh create | test | destroy
 set -euo pipefail
 V="virsh -c qemu:///system"
 KEY=${KG_LAB_KEY:-$HOME/.ssh/kubeguard-lab.pub}
 HERE=$(cd "$(dirname "$0")" && pwd)
-NODES="kg-t1 kg-t2"
+NODES="kg-test-1-vm kg-test-2-vm"
 
 vm_ip() { $V domifaddr "$1" --source lease 2>/dev/null | awk '/ipv4/ {sub("/.*","",$4); print $4; exit}'; }
 vm_ssh() {
@@ -26,27 +26,27 @@ make_seed() {
   # unique instance-id makes cloud-init treat the clone as a new instance and
   # regenerate its network config for the clone's own MAC address
   local n=$1 tmp; tmp=$(mktemp -d)
-  sed -e "s|@SSH_PUBKEY@|$(cat "$KEY")|" -e "s|@NAME@|$n|" "$HERE/../cloud-init/clone-user-data.tpl" > "$tmp/user-data"
+  sed -e "s|@SSH_PUBKEY@|$(cat "$KEY")|" -e "s|@NAME@|${n%-vm}|" "$HERE/../cloud-init/clone-user-data.tpl" > "$tmp/user-data"
   printf 'instance-id: %s-%s\nlocal-hostname: %s\n' "$n" "$(date +%s)" "$n" > "$tmp/meta-data"
   cloud-localds "$tmp/seed.iso" "$tmp/user-data" "$tmp/meta-data"
-  $V vol-create-as kg-images "$n-seed.iso" "$(stat -c %s "$tmp/seed.iso")" --format raw
-  $V vol-upload --pool kg-images "$n-seed.iso" "$tmp/seed.iso"
+  $V vol-create-as kg-storage-pool "${n%-vm}-seed.iso" "$(stat -c %s "$tmp/seed.iso")" --format raw
+  $V vol-upload --pool kg-storage-pool "${n%-vm}-seed.iso" "$tmp/seed.iso"
   rm -rf "$tmp"
 }
 
 swap_seed() {
   local n=$1 tgt path
   tgt=$($V domblklist "$n" --details | awk '$2=="cdrom" {print $3; exit}')
-  path=$($V vol-path --pool kg-images "$n-seed.iso")
+  path=$($V vol-path --pool kg-storage-pool "${n%-vm}-seed.iso")
   $V change-media "$n" "$tgt" "$path" --config --update 2>/dev/null || $V change-media "$n" "$tgt" "$path" --config --insert
 }
 
 create() {
   for n in $NODES; do
-    virt-clone --connect qemu:///system --original kg-base --name "$n" --auto-clone >/dev/null
-    mac=$($V domiflist "$n" | awk '/kg-build/ {print $5}')
+    virt-clone --connect qemu:///system --original kg-template-vm --name "$n" --auto-clone >/dev/null
+    mac=$($V domiflist "$n" | awk '/kg-internet-access-network/ {print $5}')
     $V detach-interface "$n" network --mac "$mac" --config
-    $V attach-interface "$n" network kg-lab --model virtio --config
+    $V attach-interface "$n" network kg-isolated-network --model virtio --config
     make_seed "$n"
     swap_seed "$n"
     $V start "$n" >/dev/null
@@ -60,7 +60,7 @@ create() {
 }
 
 test_nodes() {
-  A=$(vm_ip kg-t1); B=$(vm_ip kg-t2)
+  A=$(vm_ip kg-test-1-vm); B=$(vm_ip kg-test-2-vm)
   [ "$A" != "$B" ] || { echo "FAIL  both VMs have the same address $A"; exit 1; }
   "$HERE/test-isolation.sh" "$A" "$B" ubuntu
 }
@@ -69,7 +69,7 @@ destroy() {
   for n in $NODES; do
     $V destroy "$n" 2>/dev/null || true
     $V undefine "$n" --remove-all-storage --snapshots-metadata 2>/dev/null || true
-    $V vol-delete --pool kg-images "$n-seed.iso" 2>/dev/null || true
+    $V vol-delete --pool kg-storage-pool "${n%-vm}-seed.iso" 2>/dev/null || true
   done
 }
 
