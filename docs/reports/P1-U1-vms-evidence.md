@@ -52,6 +52,6 @@ All three nodes returned to `<name>-clean-snapshot`, the internet interface was 
 - `ssh` inside `while read` loops consumed the loop input, so only the first node was reported as reachable. Fixed with `ssh -n`.
 - The isolation test could report "cannot reach" results when SSH itself had failed, and relied on the SSH agent. It now uses the lab key and fails if SSH fails.
 
-Open: the masquerade check needs to be run once from a terminal where `sudo` works (`make isolated-network-test`).
+The masquerade check, which needs `sudo`, was run by the researcher in a terminal on 2026-10-09 (`make isolated-network-test`): `PASS  no NAT/masquerade rule for the lab subnet`, together with the three network checks.
 
 Result: the acceptance check of P1-U1 (`make vms` creates 3 reachable VMs) passes, and the clean-snapshot reset path works.

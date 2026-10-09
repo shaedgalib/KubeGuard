@@ -106,7 +106,7 @@ One entry per finished unit: objective, rationale, deliverables, implementation,
 
 **Implementation.** Each node disk is a copy of `kg-template-disk.qcow2` grown to 20 GiB. Each node gets its own cloud-init seed with its hostname, the lab key, a new machine-id and a two-interface network configuration: `isolated0` (permanent, fixed address through a DHCP reservation) and `internet0` (build window only, lower route metric). Sizing starts minimal (decision D1): 2 vCPU and 2 GiB per node.
 
-**Verification.** `make vms` creates three nodes reachable over SSH; `make vms-test` passes 21 checks (hostname, vCPUs, memory, disk size, kernel BTF, unique machine-ids, node-to-node reachability); `make vms-isolate` shows the nodes cannot reach the LAN gateway or the internet once `internet0` is detached; `make vms-restore` returns them to their clean snapshots. The masquerade check of the isolation script needs a one-time run with `sudo` from a terminal.
+**Verification.** `make vms` creates three nodes reachable over SSH; `make vms-test` passes 21 checks (hostname, vCPUs, memory, disk size, kernel BTF, unique machine-ids, node-to-node reachability); `make vms-isolate` shows the nodes cannot reach the LAN gateway or the internet once `internet0` is detached; `make vms-restore` returns them to their clean snapshots. The masquerade check, which needs `sudo`, was run from a terminal and passes.
 
 **Status.** Done. Branch `feat/p1-nodes`.
 
