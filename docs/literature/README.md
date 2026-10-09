@@ -14,7 +14,7 @@ Acceptance check for P0-U7: 15 or more entries in `matrix.md` with `Verified = y
 
 ## Rules
 
-1. Entries in `matrix.md` start as **leads**, found by web search by the assistant. A lead has a title and a link taken from search results and nothing else. Authors, venue, year, results and quality are not known until the paper is opened.
+1. Entries in `matrix.md` start as **leads**, found by web search by the assistant. The assistant may then read the source page and record what it states (`Checked`). This confirms that the entry exists and matches its metadata. It is abstract-level and not a review of the full text.
 2. The researcher opens every lead and records title, authors, venue, year and DOI or arXiv identifier in Zotero. Only then is `Verified` set to `yes` with the date.
 3. Theses, repositories, vendor blogs and documentation are marked in the `Type` column. They may inform the review but do not count towards the 15 papers unless the researcher decides otherwise.
 4. The assistant never writes claims about a paper's results into the matrix. The columns Data, Method, Attack coverage, Baselines and Limitations are filled by the researcher after reading.
