@@ -121,8 +121,8 @@ make ansible-test                    # runs the playbook twice; the second run m
 | Role | What it does |
 |---|---|
 | `common` | swap off, kernel modules `overlay` and `br_netfilter`, sysctl settings, node names in `/etc/hosts` |
-| `containerd` | containerd 2.3.6, runc 1.5.2 and `crictl` 1.37.0 from the project release pages, checked against pinned SHA256 hashes; systemd cgroup driver |
-| `kubernetes_packages` | `kubelet` and `kubeadm` (and `kubectl` on the control node) 1.37.1, held; `--node-ip` set per node |
+| `containerd` | containerd 2.3.6, runc 1.5.2 and `crictl` 1.36.0 from the project release pages, checked against pinned SHA256 hashes; systemd cgroup driver |
+| `kubernetes_packages` | `kubelet` and `kubeadm` (and `kubectl` on the control node) 1.36.5, held; `--node-ip` set per node |
 | `kubeadm_init` | `kubeadm init` on the control node, then the project kubeconfig is fetched to the host |
 | `kubeadm_join` | joins each worker with a short-lived token that is not logged |
 
@@ -148,12 +148,12 @@ Inspect the running cluster (read-only; checked by the researcher on 2026-10-10)
 
 ```bash
 curl -sk https://10.77.0.10:6443/readyz; echo                # ok
-make kubectl ARGS="version"                                   # Server Version: v1.37.1
+make kubectl ARGS="version"                                   # Server Version: v1.36.5
 make kubectl ARGS="get nodes -o wide"                         # 3 nodes, INTERNAL-IP 10.77.0.10 / .11 / .12
 make kubectl ARGS="-n kube-system get pods"                   # etcd, apiserver, controller-manager, scheduler Running
 make kubectl ARGS="-n kube-system get daemonset kube-proxy"   # NotFound: Cilium replaces kube-proxy
 node 10.77.0.10 'cat /etc/kubeadm/kubeadm-config.yaml'        # the configuration kubeadm used
-node 10.77.0.10 'kubeadm version -o short; apt-mark showhold' # v1.37.1; kubeadm, kubectl, kubelet held
+node 10.77.0.10 'kubeadm version -o short; apt-mark showhold' # v1.36.5; kubeadm, kubectl, kubelet held
 node 10.77.0.11 'cat /etc/default/kubelet'                    # KUBELET_EXTRA_ARGS=--node-ip=10.77.0.11
 ```
 
@@ -194,7 +194,7 @@ make kubectl ARGS="get nodes -o wide"                         # three nodes, all
 make ansible-test                                              # PASS: Ansible agrees with the manual result
 ```
 
-Installing `kubelet` and `kubeadm` by hand, if a node has no packages: add the `pkgs.k8s.io` v1.37 repository, check that the key fingerprint is `DE15B14486CD377B9E876E1A234654DA9A296436`, install `kubelet=1.37.1-1.1` and `kubeadm=1.37.1-1.1` (plus `kubectl=1.37.1-1.1` on the control node), hold them, set `KUBELET_EXTRA_ARGS=--node-ip=<node address>` in `/etc/default/kubelet`, and enable `kubelet`. The role `kubernetes_packages` is the exact reference.
+Installing `kubelet` and `kubeadm` by hand, if a node has no packages: add the `pkgs.k8s.io` v1.36 repository, check that the key fingerprint is `DE15B14486CD377B9E876E1A234654DA9A296436`, install `kubelet=1.36.5-1.1` and `kubeadm=1.36.5-1.1` (plus `kubectl=1.36.5-1.1` on the control node), hold them, set `KUBELET_EXTRA_ARGS=--node-ip=<node address>` in `/etc/default/kubelet`, and enable `kubelet`. The role `kubernetes_packages` is the exact reference.
 
 ## Troubleshooting
 
@@ -208,10 +208,11 @@ Installing `kubelet` and `kubeadm` by hand, if a node has no packages: add the `
 | Downloads or image pulls fail on a node | The node is isolated: `make vms-attach-internet` |
 | `kubeadm init` fails midway | `node 10.77.0.10 'sudo kubeadm reset -f'`, then `make ansible-apply` |
 | Rebuild fails on the Kubernetes repository key | The key expired on 2026-12-29: update the fingerprint pin in `infra/ansible/group_vars/all.yml` |
-| `kubectl` warns about version skew | The host `kubectl` is 1.35.x against server 1.37.1: use `kubectl` on `kg-control-1` (`node 10.77.0.10 'sudo kubectl --kubeconfig /etc/kubernetes/admin.conf ...'`) |
+| `kubectl` warns about version skew | The host `kubectl` is more than one minor version away from the server: install a matching client, or use `kubectl` on `kg-control-1` (`node 10.77.0.10 'sudo kubectl --kubeconfig /etc/kubernetes/admin.conf ...'`) |
 
 ## Known limits
 
 - The Kubernetes apt signing key expires on 2026-12-29.
-- The host `kubectl` is two minor versions behind the cluster, outside the supported skew of one.
+- The host `kubectl` (1.35.7) is one minor version behind the cluster (1.36.5), which is within the supported skew. Keep it within one minor version of the server.
+- Host tools: Helm 4.3.0 (Helm 4.3.x supports Kubernetes 1.34 to 1.37; the old Helm 3.16.3 is kept as `helm-3.16.3`), Cilium CLI 0.20.1, Hubble CLI 1.20.2, all in `~/.local/bin`.
 - The masquerade check of the isolation test needs a terminal where `sudo` can ask for a password.

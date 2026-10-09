@@ -154,7 +154,7 @@ One entry per finished unit: objective, rationale, deliverables, implementation,
 - Pins and SHA256 hashes in `infra/ansible/group_vars/all.yml`; versions recorded in `infra/versions.env`.
 - [docs/reports/P1-U3-containerd-evidence.md](../reports/P1-U3-containerd-evidence.md).
 
-**Implementation.** containerd 2.3.6 (the LTS line, supported until April 2028), runc 1.5.2 and `crictl` 1.37.0 are downloaded from the project release pages and checked against pinned hashes. The role writes a minimal containerd configuration (config version 4, systemd cgroup driver), a systemd unit from a template, and `/etc/crictl.yaml`. It creates `/opt/cni/bin` and `/etc/cni/net.d` but installs no CNI plugin, because Cilium provides pod networking in P1-U5. Ubuntu's own `containerd` package was not used: it is version 2.2.1, which Kubernetes 1.37 does not support and which reaches end of life on 2026-11-06. The role ends with checks (versions, cgroup driver, `crictl info` RuntimeReady).
+**Implementation.** containerd 2.3.6 (the LTS line, supported until April 2028), runc 1.5.2 and `crictl` 1.36.0 are downloaded from the project release pages and checked against pinned hashes. The role writes a minimal containerd configuration (config version 4, systemd cgroup driver), a systemd unit from a template, and `/etc/crictl.yaml`. It creates `/opt/cni/bin` and `/etc/cni/net.d` but installs no CNI plugin, because Cilium provides pod networking in P1-U5. Ubuntu's own `containerd` package was not used: it is version 2.2.1, which Kubernetes 1.37 does not support and which reaches end of life on 2026-11-06. The role ends with checks (versions, cgroup driver, `crictl info` RuntimeReady).
 
 **Verification.** `crictl info` reports RuntimeReady on all three nodes; the second Ansible run reports `changed=0`; a pulled image can be removed and pulled again; containerd is active after a reboot. `NetworkReady` is false until Cilium is installed, as expected. Two defects were found and fixed (a `pipefail` check, an outdated config version).
 
@@ -168,13 +168,13 @@ One entry per finished unit: objective, rationale, deliverables, implementation,
 
 **Deliverables.**
 - Roles `kubernetes_packages`, `kubeadm_init` and `kubeadm_join`, and three more plays in `infra/ansible/site.yml` (control plane, join, cluster check).
-- Pins and addressing in `infra/ansible/group_vars/all.yml`: Kubernetes 1.37.1, the repository key fingerprint, pod and service CIDRs.
+- Pins and addressing in `infra/ansible/group_vars/all.yml`: Kubernetes 1.36.5, the repository key fingerprint, pod and service CIDRs.
 - Makefile target `kubectl` (project kubeconfig only).
 - [docs/reports/P1-U4-kubeadm-evidence.md](../reports/P1-U4-kubeadm-evidence.md) and the runbook [docs/runbooks/lab-operations.md](../runbooks/lab-operations.md) (how to operate every layer of the lab, inspect and rebuild the cluster, and the rules for the project kubeconfig).
 
 **Implementation.** `kubelet` and `kubeadm` (and `kubectl` on the control node) are installed at the pinned version from the official apt repository after the signing key is checked against a pinned fingerprint, then held. Each kubelet starts with `--node-ip` set to the node's isolated address, so the cluster never uses the temporary internet interface. `kubeadm init` runs from a configuration file (API `v1beta4`) only when `admin.conf` does not exist; workers join with a short-lived token created on the control node only when `kubelet.conf` does not exist, and the token is not logged. The admin kubeconfig is fetched to `~/.kube/kubeguard.kubeconfig` (mode 0600, outside the repository). `kube-proxy` is skipped because Cilium replaces it.
 
-**Verification.** `kubectl get nodes` from the host shows three nodes with their isolated addresses and version v1.37.1; the API answers `ok` on `/readyz`; the control-plane pods are `Running`; `kube-proxy` does not exist; the second Ansible run reports `changed=0`. Nodes are `NotReady` and CoreDNS is `Pending` until the pod network exists (P1-U5), as expected.
+**Verification.** `kubectl get nodes` from the host shows three nodes with their isolated addresses and version v1.36.5; the API answers `ok` on `/readyz`; the control-plane pods are `Running`; `kube-proxy` does not exist; the second Ansible run reports `changed=0`. Nodes are `NotReady` and CoreDNS is `Pending` until the pod network exists (P1-U5), as expected.
 
 **Status.** Done. Branch `feat/p1-nodes`.
 
@@ -197,6 +197,7 @@ No gate closes Phase 1. Gate G1 follows Phase 2. Pass condition for the phase: f
 Changes to the approved plan during Phase 1. One line each: date, decision number, change, reason.
 
 2026-10-09 | workflow | The 14 units are grouped into six branches (see Branches and the Branch column) | Fewer branches, same acceptance checks per unit
+2026-10-10 | D8 | Kubernetes pinned to 1.36.5 (was 1.37.1) and `crictl` to 1.36.0 (was 1.37.0); Helm 4.3.0 installed on the host (was 3.16.3); the cluster was rebuilt | Cilium 1.20 lists Kubernetes 1.33 to 1.36 only, 1.37 is not covered; Helm 4.3.x supports Kubernetes 1.34 to 1.37 and Helm 3.16 does not cover 1.36; containerd 2.3.6 supports 1.36
 
 ## Retrospective
 
