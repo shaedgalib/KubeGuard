@@ -1,0 +1,43 @@
+# Helm values for Cilium (P1-U5). Chart version is pinned in infra/versions.env (CILIUM).
+# Install with: make cilium-install      Check with: make cilium-status
+#
+# Kubernetes here is built with kubeadm, kube-proxy skipped (addon/kube-proxy), so Cilium does
+# the work of kube-proxy and the pod network. Nothing else in the cluster runs kube-proxy.
+
+cluster:
+  name: kubeguard
+
+# Replace kube-proxy: Cilium implements Services with eBPF. Without kube-proxy the agent cannot
+# find the API server through a Service, so it is told the real address of the API server.
+kubeProxyReplacement: true
+k8sServiceHost: 10.77.0.10
+k8sServicePort: 6443
+
+# Pod addresses: use the ranges kubeadm gave each node from the pod CIDR (10.244.0.0/16).
+ipam:
+  mode: kubernetes
+
+# Attach Cilium's eBPF programs only to the isolated interface. The nodes also have a temporary
+# internet0 interface during builds, which is detached later; Cilium must not depend on it.
+devices: isolated0
+
+# Pod-to-pod traffic between nodes is encapsulated (VXLAN, the default). It needs no routes on
+# the host bridge, which suits this lab network.
+routingMode: tunnel
+tunnelProtocol: vxlan
+
+# One operator is enough on a three-node lab, and saves memory on 2 GiB nodes.
+operator:
+  replicas: 1
+
+# Hubble: the flow view. The relay collects flows from all nodes; the UI is a browser view of them.
+hubble:
+  enabled: true
+  relay:
+    enabled: true
+  ui:
+    enabled: true
+
+# Gateway API (ingress replacement, P1-U6) is switched on later, after its CRDs are installed.
+gatewayAPI:
+  enabled: false

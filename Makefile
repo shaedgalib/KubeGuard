@@ -1,5 +1,11 @@
 .DEFAULT_GOAL := help
-.PHONY: help isolated-network-up isolated-network-down isolated-network-test internet-network-up internet-network-down template-vm-create template-vm-snapshot template-vm-restore-test template-vm-destroy vms vms-status vms-test vms-isolate vms-attach-internet vms-snapshot vms-restore vms-destroy ansible-setup ansible-inventory ansible-apply ansible-test kubectl
+
+# The project's own kubeconfig. Every cluster command uses it explicitly, never another one.
+PROJECT_KUBECONFIG := $(HOME)/.kube/kubeguard.kubeconfig
+# Pinned versions (one place: infra/versions.env). Values are stripped of trailing spaces.
+-include infra/versions.env
+CILIUM_VERSION := $(strip $(CILIUM))
+.PHONY: help isolated-network-up isolated-network-down isolated-network-test internet-network-up internet-network-down template-vm-create template-vm-snapshot template-vm-restore-test template-vm-destroy vms vms-status vms-test vms-isolate vms-attach-internet vms-snapshot vms-restore vms-destroy ansible-setup ansible-inventory ansible-apply ansible-test kubectl cilium-install cilium-status cilium-uninstall hubble-ui
 
 help: ## List targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-28s %s\n", $$1, $$2}'
@@ -82,4 +88,17 @@ ansible-test: ## Run the playbook twice; the second run must change nothing
 
 # P1-U4: talk to the cluster with the project's own kubeconfig only (never another one)
 kubectl: ## Run kubectl against the KubeGuard cluster, for example: make kubectl ARGS="get nodes"
-	env -u KUBECONFIG kubectl --kubeconfig $(HOME)/.kube/kubeguard.kubeconfig $(ARGS)
+	env -u KUBECONFIG kubectl --kubeconfig $(PROJECT_KUBECONFIG) $(ARGS)
+
+# P1-U5: pod network (Cilium) and Hubble. Chart pinned in infra/versions.env, settings in k8s/cilium/values.yaml
+cilium-install: ## Install or upgrade Cilium (pinned chart) and wait until it is ready
+	env -u KUBECONFIG helm --kubeconfig $(PROJECT_KUBECONFIG) upgrade --install cilium cilium/cilium --version $(CILIUM_VERSION) --namespace kube-system --values k8s/cilium/values.yaml --wait --timeout 10m
+
+cilium-status: ## Show the Cilium status (waits for readiness)
+	env -u KUBECONFIG cilium status --kubeconfig $(PROJECT_KUBECONFIG) --wait
+
+cilium-uninstall: ## Remove Cilium (the nodes go back to NotReady)
+	env -u KUBECONFIG helm --kubeconfig $(PROJECT_KUBECONFIG) uninstall cilium --namespace kube-system
+
+hubble-ui: ## Open the Hubble UI through a local port-forward (Ctrl+C to stop)
+	env -u KUBECONFIG cilium hubble ui --kubeconfig $(PROJECT_KUBECONFIG)
