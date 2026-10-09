@@ -3,11 +3,15 @@
      Subnet 10.77.0.0/24 avoids the home LAN (172.16.214.x/23), Docker
      (172.17-21.0.0/16) and libvirt default (192.168.122.0/24). -->
 <network>
-  <name>kg-lab</name>
-  <bridge name="virbr-kg" stp="on" delay="0"/>
+  <name>kg-isolated-network</name>
+  <bridge name="kg-isolated-br" stp="on" delay="0"/>
   <ip address="10.77.0.1" netmask="255.255.255.0">
     <dhcp>
       <range start="10.77.0.100" end="10.77.0.199"/>
+      <!-- fixed addresses of the cluster nodes (P1-U1, see infra/libvirt/nodes.conf) -->
+      <host mac="52:54:00:77:00:10" name="kg-control-1" ip="10.77.0.10"/>
+      <host mac="52:54:00:77:00:11" name="kg-worker-1" ip="10.77.0.11"/>
+      <host mac="52:54:00:77:00:12" name="kg-worker-2" ip="10.77.0.12"/>
     </dhcp>
   </ip>
 </network>

@@ -1,0 +1,27 @@
+# Managed by Ansible (role kubeadm_init). Settings follow design decisions D3 and the P1 spec.
+apiVersion: kubeadm.k8s.io/v1beta4
+kind: InitConfiguration
+localAPIEndpoint:
+  advertiseAddress: {{ ansible_host }}
+  bindPort: 6443
+nodeRegistration:
+  name: {{ inventory_hostname }}
+  criSocket: unix:///run/containerd/containerd.sock
+# Cilium replaces kube-proxy (P1-U5), so kube-proxy is not installed.
+skipPhases:
+  - addon/kube-proxy
+---
+apiVersion: kubeadm.k8s.io/v1beta4
+kind: ClusterConfiguration
+kubernetesVersion: v{{ kubernetes_version }}
+clusterName: {{ kubernetes_cluster_name }}
+controlPlaneEndpoint: "{{ ansible_host }}:6443"
+networking:
+  podSubnet: {{ kubernetes_pod_cidr }}
+  serviceSubnet: {{ kubernetes_service_cidr }}
+  dnsDomain: cluster.local
+---
+apiVersion: kubelet.config.k8s.io/v1beta1
+kind: KubeletConfiguration
+# Must match the cgroup driver of containerd (role containerd).
+cgroupDriver: systemd

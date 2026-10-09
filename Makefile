@@ -1,41 +1,85 @@
 .DEFAULT_GOAL := help
-.PHONY: help net-up net-down net-test build-net-up build-net-down base-vm base-snapshot base-restore-test base-destroy
+.PHONY: help isolated-network-up isolated-network-down isolated-network-test internet-network-up internet-network-down template-vm-create template-vm-snapshot template-vm-restore-test template-vm-destroy vms vms-status vms-test vms-isolate vms-attach-internet vms-snapshot vms-restore vms-destroy ansible-setup ansible-inventory ansible-apply ansible-test kubectl
 
 help: ## List targets
-	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-12s %s\n", $$1, $$2}'
+	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-28s %s\n", $$1, $$2}'
 
 # Targets for up, down, reset and cluster are added in Phase 1.
+# Naming rules: docs/naming.md
 
-# P0-U5: isolated lab network
-net-up: ## Define and start the isolated kg-lab network
-	virsh -c qemu:///system net-define infra/libvirt/kg-lab-net.xml
-	virsh -c qemu:///system net-autostart kg-lab
-	virsh -c qemu:///system net-start kg-lab
+# P0-U5: isolated network (no internet, the only network attacks may use)
+isolated-network-up: ## Define and start kg-isolated-network
+	virsh -c qemu:///system net-define infra/libvirt/kg-isolated-network.xml
+	virsh -c qemu:///system net-autostart kg-isolated-network
+	virsh -c qemu:///system net-start kg-isolated-network
 
-net-down: ## Stop and remove the kg-lab network
-	-virsh -c qemu:///system net-destroy kg-lab
-	-virsh -c qemu:///system net-undefine kg-lab
+isolated-network-down: ## Stop and remove kg-isolated-network
+	-virsh -c qemu:///system net-destroy kg-isolated-network
+	-virsh -c qemu:///system net-undefine kg-isolated-network
 
-net-test: ## Run the isolation checks (static; pass VM args via ARGS)
+isolated-network-test: ## Run the isolation checks (static; pass VM args via ARGS)
 	infra/libvirt/test-isolation.sh $(ARGS)
 
-# P0-U6: base VM image (kg-build is a temporary NAT network, see ADR-001)
-build-net-up: ## Define and start the temporary kg-build NAT network
-	virsh -c qemu:///system net-define infra/libvirt/kg-build-net.xml
-	virsh -c qemu:///system net-start kg-build
+# P0-U6: template VM. kg-internet-access-network gives internet during builds only (ADR-001)
+internet-network-up: ## Define and start kg-internet-access-network (build time only)
+	virsh -c qemu:///system net-define infra/libvirt/kg-internet-access-network.xml
+	virsh -c qemu:///system net-start kg-internet-access-network
 
-build-net-down: ## Stop and remove the kg-build network
-	-virsh -c qemu:///system net-destroy kg-build
-	-virsh -c qemu:///system net-undefine kg-build
+internet-network-down: ## Stop and remove kg-internet-access-network
+	-virsh -c qemu:///system net-destroy kg-internet-access-network
+	-virsh -c qemu:///system net-undefine kg-internet-access-network
 
-base-vm: ## Create and boot the kg-base VM (provisions, then powers off)
-	infra/libvirt/build-base-vm.sh create
+template-vm-create: ## Create and boot kg-template-vm (provisions, then powers off)
+	infra/libvirt/build-template-vm.sh create
 
-base-snapshot: ## Snapshot kg-base as base-clean (VM must be shut off)
-	infra/libvirt/build-base-vm.sh snapshot
+template-vm-snapshot: ## Snapshot kg-template-vm as kg-template-clean-snapshot (VM must be shut off)
+	infra/libvirt/build-template-vm.sh snapshot
 
-base-restore-test: ## Revert to base-clean and check the restore
-	infra/libvirt/build-base-vm.sh restore-test
+template-vm-restore-test: ## Revert to kg-template-clean-snapshot and check the restore
+	infra/libvirt/build-template-vm.sh restore-test
 
-base-destroy: ## Remove kg-base, its disk and seed image
-	infra/libvirt/build-base-vm.sh destroy
+template-vm-destroy: ## Remove kg-template-vm, its disk and seed image
+	infra/libvirt/build-template-vm.sh destroy
+
+# P1-U1: cluster node VMs (kg-control-1-vm, kg-worker-1-vm, kg-worker-2-vm)
+vms: ## Create the three cluster node VMs from kg-template-vm
+	infra/libvirt/build-nodes.sh create
+
+vms-status: ## Show state, address and interfaces of the node VMs
+	infra/libvirt/build-nodes.sh status
+
+vms-test: ## Check the node VMs (reachable, sizing, BTF, unique machine-id)
+	infra/libvirt/build-nodes.sh test
+
+vms-isolate: ## Detach the internet interface and run the isolation checks
+	infra/libvirt/build-nodes.sh isolate
+
+vms-attach-internet: ## Give every node VM its internet interface back (build window)
+	infra/libvirt/build-nodes.sh attach
+
+vms-snapshot: ## Snapshot each node VM as <name>-clean-snapshot
+	infra/libvirt/build-nodes.sh snapshot
+
+vms-restore: ## Return every node VM to its clean snapshot (re-attaches the internet interface)
+	infra/libvirt/build-nodes.sh restore
+
+vms-destroy: ## Remove the node VMs, their disks and seeds
+	infra/libvirt/build-nodes.sh destroy
+
+# P1-U2: node preparation with Ansible (installed in the project virtual environment .venv)
+ansible-setup: ## Create .venv and install the pinned Ansible
+	python3 -m venv .venv
+	.venv/bin/pip install --quiet -r infra/ansible/requirements.txt
+
+ansible-inventory: ## Generate the Ansible inventory from infra/libvirt/nodes.conf
+	infra/ansible/gen-inventory.sh
+
+ansible-apply: ansible-inventory ## Apply all node roles (common, containerd) to all nodes
+	cd infra/ansible && ../../.venv/bin/ansible-playbook site.yml
+
+ansible-test: ## Run the playbook twice; the second run must change nothing
+	infra/ansible/test-idempotence.sh
+
+# P1-U4: talk to the cluster with the project's own kubeconfig only (never another one)
+kubectl: ## Run kubectl against the KubeGuard cluster, for example: make kubectl ARGS="get nodes"
+	env -u KUBECONFIG kubectl --kubeconfig $(HOME)/.kube/kubeguard.kubeconfig $(ARGS)
