@@ -1,0 +1,75 @@
+# Role common: the settings every Kubernetes node needs. Every task is written so that a
+# second run reports no change.
+
+- name: Turn swap off now
+  ansible.builtin.command: swapoff -a
+  when: ansible_facts['swaptotal_mb'] | int > 0
+
+- name: Keep swap off after a reboot (comment swap lines in /etc/fstab)
+  ansible.builtin.replace:
+    path: /etc/fstab
+    regexp: '^([^#\n].*\sswap\s.*)$'
+    replace: '# \1'
+
+- name: List loaded kernel modules
+  ansible.builtin.command: lsmod
+  register: common_lsmod
+  changed_when: false
+
+- name: Load the kernel modules now
+  ansible.builtin.command: "modprobe {{ item }}"
+  loop: "{{ common_kernel_modules }}"
+  when: item not in common_lsmod.stdout
+  
+- name: Load the kernel modules on every boot
+  ansible.builtin.copy:
+    dest: /etc/modules-load.d/kubernetes.conf
+    content: "{{ common_kernel_modules | join('\n') }}\n"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Set the kernel parameters
+  ansible.builtin.copy:
+    dest: /etc/sysctl.d/99-kubernetes.conf
+    content: |
+      {% for key, value in common_sysctl.items() %}
+      {{ key }} = {{ value }}
+      {% endfor %}
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload sysctl
+
+- name: Apply the kernel parameters before checking them
+  ansible.builtin.meta: flush_handlers
+
+- name: Let the nodes resolve each other by name
+  ansible.builtin.blockinfile:
+    path: /etc/hosts
+    marker: "# {mark} kubeguard cluster nodes"
+    block: |
+      {% for host in groups['cluster'] %}
+      {{ hostvars[host]['ansible_host'] }} {{ host }}
+      {% endfor %}
+
+# Checks: the role fails if the node does not end up in the intended state.
+- name: Check that swap is off
+  ansible.builtin.command: swapon --show --noheadings
+  register: common_swap
+  changed_when: false
+  failed_when: common_swap.stdout | length > 0
+
+- name: Check that the kernel modules are loaded
+  ansible.builtin.command: lsmod
+  register: common_lsmod_after
+  changed_when: false
+  failed_when: item not in common_lsmod_after.stdout
+  loop: "{{ common_kernel_modules }}"
+
+- name: Check the kernel parameters
+  ansible.builtin.command: "sysctl -n {{ item.key }}"
+  register: common_sysctl_value
+  changed_when: false
+  failed_when: common_sysctl_value.stdout != item.value
+  loop: "{{ common_sysctl | dict2items }}"

@@ -1,7 +1,7 @@
 #cloud-config
 # Template. @SSH_PUBKEY@ is replaced by infra/libvirt/build-base-vm.sh with the
 # public key of ~/.ssh/kubeguard-lab. The rendered file is not stored in git.
-hostname: kg-base
+hostname: kg-template
 users:
   - name: ubuntu
     shell: /bin/bash

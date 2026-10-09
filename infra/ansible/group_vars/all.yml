@@ -1,0 +1,39 @@
+# Kernel modules Kubernetes needs: overlay is the container filesystem, br_netfilter lets
+# firewall rules see traffic that crosses a bridge.
+common_kernel_modules:
+  - overlay
+  - br_netfilter
+
+# Settings that kubeadm checks and that pod networking relies on.
+common_sysctl:
+  net.ipv4.ip_forward: "1"
+  net.bridge.bridge-nf-call-iptables: "1"
+  net.bridge.bridge-nf-call-ip6tables: "1"
+
+# Container runtime (P1-U3). Versions and SHA256 hashes are pinned from the projects' own
+# release pages (design decision D8); see infra/versions.env.
+containerd_version: "2.3.6"
+containerd_url: "https://github.com/containerd/containerd/releases/download/v{{ containerd_version }}/containerd-{{ containerd_version }}-linux-amd64.tar.gz"
+containerd_sha256: "df806bb9b86653ebc94822a7076642ff3c3614324dbc1b511bdf75ac1669b762"
+
+runc_version: "1.5.2"
+runc_url: "https://github.com/opencontainers/runc/releases/download/v{{ runc_version }}/runc.amd64"
+runc_sha256: "599f6f94ff8c5057241eff0d54c3c74f95c34935b6457b33fe545defc61e9488"
+
+crictl_version: "1.37.0"
+crictl_url: "https://github.com/kubernetes-sigs/cri-tools/releases/download/v{{ crictl_version }}/crictl-v{{ crictl_version }}-linux-amd64.tar.gz"
+crictl_sha256: "67c983ee8a6bbce73d39a186e633c5fe4f8a70e62171ac3bd92a9c1b2c601670"
+
+# Kubernetes packages (P1-U4), from the official apt repository pkgs.k8s.io.
+kubernetes_minor: "v1.37"
+kubernetes_version: "1.37.1"
+kubernetes_package_version: "1.37.1-1.1"
+kubernetes_apt_key_url: "https://pkgs.k8s.io/core:/stable:/{{ kubernetes_minor }}/deb/Release.key"
+# Fingerprint of the repository signing key (expires 2026-12-29; a new key means a new pin).
+kubernetes_apt_key_fingerprint: "DE15B14486CD377B9E876E1A234654DA9A296436"
+
+# Cluster addressing (design decision D3). None of these overlap the lab networks, the home
+# LAN, Docker or the libvirt default network.
+kubernetes_pod_cidr: "10.244.0.0/16"
+kubernetes_service_cidr: "10.96.0.0/16"
+kubernetes_cluster_name: "kubeguard"

@@ -1,0 +1,52 @@
+# Prepare every cluster node (P1-U2). Later units add plays for containerd, kubeadm and so on.
+- name: Prepare cluster nodes
+  hosts: cluster
+  become: true
+  roles:
+    - common
+    - containerd
+    - kubernetes_packages
+
+- name: Create the control plane
+  hosts: control
+  become: true
+  roles:
+    - kubeadm_init
+
+- name: Join the workers
+  hosts: workers
+  become: true
+  roles:
+    - kubeadm_join
+
+- name: Check the cluster
+  hosts: control
+  become: true
+  tasks:
+    - name: Wait until all nodes have registered
+      ansible.builtin.shell: kubectl --kubeconfig /etc/kubernetes/admin.conf get nodes --no-headers | wc -l
+      register: cluster_node_count
+      until: cluster_node_count.stdout | int == groups['cluster'] | length
+      retries: 30
+      delay: 5
+      changed_when: false
+
+    - name: Collect the internal address of every node
+      ansible.builtin.shell: |
+        kubectl --kubeconfig /etc/kubernetes/admin.conf get nodes -o jsonpath='{range .items[*]}{.metadata.name}={.status.addresses[?(@.type=="InternalIP")].address}{"\n"}{end}'
+      args:
+        executable: /bin/bash
+      register: cluster_node_addresses
+      changed_when: false
+
+    - name: Check that every node uses its isolated address
+      ansible.builtin.assert:
+        that: "(item ~ '=' ~ hostvars[item]['ansible_host']) in cluster_node_addresses.stdout_lines"
+        fail_msg: "{{ item }} does not report its isolated address as InternalIP"
+      loop: "{{ groups['cluster'] }}"
+
+    - name: Check that kube-proxy is not installed
+      ansible.builtin.command: kubectl --kubeconfig /etc/kubernetes/admin.conf -n kube-system get daemonset kube-proxy
+      register: cluster_kube_proxy
+      failed_when: cluster_kube_proxy.rc == 0
+      changed_when: false

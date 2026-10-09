@@ -1,22 +1,22 @@
 #!/usr/bin/env bash
-# P0-U6: build the base VM, snapshot it and test the restore.
+# P0-U6: build the template VM, snapshot it and test the restore.
 # Usage: build-base-vm.sh create | snapshot | restore-test | destroy
 # Resources are kept minimal (1 vCPU, 1 GiB RAM, 10 GiB thin disk).
 set -euo pipefail
 V="virsh -c qemu:///system"
-POOL=kg-images
-VM=kg-base
+POOL=kg-storage-pool
+VM=kg-template-vm
 BACKING=noble-base.img
-DISK=$VM.qcow2
-SEED=$VM-seed.iso
-SNAP=base-clean
+DISK=kg-template-disk.qcow2
+SEED=kg-template-seed.iso
+SNAP=kg-template-clean-snapshot
 KEY=${KG_LAB_KEY:-$HOME/.ssh/kubeguard-lab.pub}
 HERE=$(cd "$(dirname "$0")" && pwd)
 CI=$HERE/../cloud-init
 
 create() {
-  netinfo=$($V net-info kg-build 2>/dev/null || true)
-  grep -q 'Active:.*yes' <<<"$netinfo" || { echo "kg-build is not active (make build-net-up)"; exit 1; }
+  netinfo=$($V net-info kg-internet-access-network 2>/dev/null || true)
+  grep -q 'Active:.*yes' <<<"$netinfo" || { echo "kg-internet-access-network is not active (make internet-network-up)"; exit 1; }
   $V vol-info --pool $POOL $BACKING >/dev/null || { echo "missing $BACKING in pool $POOL"; exit 1; }
   [ -r "$KEY" ] || { echo "public key $KEY not readable"; exit 1; }
   tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
@@ -30,7 +30,7 @@ create() {
     --memory 1024 --vcpus 1 --os-variant ubuntu24.04 \
     --disk vol=$POOL/$DISK,bus=virtio \
     --disk vol=$POOL/$SEED,device=cdrom \
-    --network network=kg-build --graphics none --noautoconsole
+    --network network=kg-internet-access-network --graphics none --noautoconsole
   echo "Provisioning runs on first boot; the VM powers off when done. Check: virsh -c qemu:///system domstate $VM"
 }
 

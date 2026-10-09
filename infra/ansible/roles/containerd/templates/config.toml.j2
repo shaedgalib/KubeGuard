@@ -1,0 +1,10 @@
+# Managed by Ansible (role containerd). Only the settings that differ from containerd's
+# defaults are listed; containerd fills in the rest.
+version = 4
+
+[plugins.'io.containerd.cri.v1.runtime'.containerd.runtimes.runc]
+  runtime_type = 'io.containerd.runc.v2'
+
+  [plugins.'io.containerd.cri.v1.runtime'.containerd.runtimes.runc.options]
+    # kubelet and containerd must use the same cgroup driver; kubeadm sets kubelet to systemd.
+    SystemdCgroup = true
