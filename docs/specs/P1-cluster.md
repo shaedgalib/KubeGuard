@@ -1,7 +1,7 @@
 # P1: Self-hosted Kubernetes cluster and networking
 
-Status: draft, pending approval
-Approved by / date:
+Status: approved
+Approved by / date: shaedgalib (researcher), 2026-10-09
 
 ## Objective
 
@@ -31,7 +31,7 @@ Out of scope: hardening (Phase 2), workloads and attacks (Phase 3), detection (P
 
 ## Design decisions to confirm
 
-These need the researcher's decision. Each becomes an ADR or a note in the relevant unit.
+Accepted by the researcher on 2026-10-09 as the working plan for Phase 1. Any change found necessary during the build is recorded under "Amendments" below, and becomes an ADR where it is a major choice. Each decision also becomes an ADR or a note in the relevant unit.
 
 | # | Decision | Proposed default | Why |
 |---|---|---|---|
@@ -100,6 +100,12 @@ Work order: U1 to U4, then U5, U6 and U8 together, then U7, U9 and U10, then U11
 ## Gate
 
 No gate closes Phase 1. Gate G1 follows Phase 2. Pass condition for the phase: from clean VMs, `make cluster` produces a Ready cluster with Hubble flows visible, the etcd restore has been tested, and the rebuild time is documented.
+
+## Amendments
+
+Changes to the approved plan during Phase 1. One line each: date, decision number, change, reason.
+
+(none yet)
 
 ## Retrospective
 
