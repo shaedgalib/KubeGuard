@@ -121,10 +121,9 @@ Each phase lists its units in dependency order. Unit IDs are stable references f
 | P0-U4 | KVM/libvirt installed, virtualization verified | `virt-host-validate` passes | [x] |
 | P0-U5 | Isolated libvirt network, no route to home or office LAN | VMs reach each other, `ping` to LAN gateway and internet-only-as-needed policy documented and tested | [x] |
 | P0-U6 | Ubuntu 24.04 cloud image, base VM template, snapshot | Base image boots and snapshot restores | [x] |
-| P0-U7 | Zotero and literature matrix (paper, data, method, attack coverage, limitations) | 15+ entries across K8s anomaly detection, eBPF observability, LLMs for SecOps | [ ] |
-| P0-U8 | Research questions v0 and gap analysis | `docs/specs/research-questions.md` written | [ ] |
+| P0-U7 | Literature matrix (paper, data, method, attack coverage, limitations) | 15+ entries across K8s anomaly detection, eBPF observability, LLMs for SecOps | [x] |
+| P0-U8 | Research questions v0 and gap analysis | `docs/specs/research-questions.md` written | [x] |
 | P0-U9 | Phase 1 spec | `docs/specs/P1-cluster.md` approved | [ ] |
-| P0-U10 | Decision on AWS cert renewals and CKS side track | One-paragraph ADR | [ ] |
 
 **Gate G0:** `ADR-G0` records whether the gap is real and the final RQs.
 
@@ -312,6 +311,6 @@ Begin with P0. Suggested order for the first bolts:
 1. P0-U1: repo skeleton, then P0-U2 (`CLAUDE.md`) and P0-U3 (templates). These are the context files every later bolt depends on.
 2. P0-U4 to P0-U6: libvirt, isolated network, base image. This is the first thing you run yourself.
 3. P0-U7 and P0-U8 in parallel with any waiting time (image downloads, installs).
-4. P0-U9 and P0-U10, then G0.
+4. P0-U9, then G0.
 
 Next step: Mob Elaboration for P0. Claude drafts `docs/specs/P0-foundation.md` and the repo skeleton from the units above, and you review and approve before any build work starts.

@@ -20,7 +20,7 @@ Research project: Kubernetes security lab, dataset, detection, eBPF, LLM triage.
 
 - The user writes core parts first: cluster setup, network policies, detection logic.
 - The assistant helps with Ansible, scripts, tests, pipeline code and docs.
-- The assistant never produces experimental numbers or citations. The user runs experiments and verifies every reference.
+- The assistant never produces experimental numbers. It may propose reference leads (title and link) found by web search, always marked unverified. The user opens and verifies every reference before it is cited or enters `paper/refs.bib`.
 
 ## Layout
 
@@ -29,6 +29,7 @@ Research project: Kubernetes security lab, dataset, detection, eBPF, LLM triage.
 | docs/specs/ | One spec per phase |
 | docs/adr/ | Architecture decision records |
 | docs/reports/ | Benchmark and hardening reports |
+| docs/literature/ | Literature protocol, matrix and gap checklist (P0) |
 | docs/dataset-card.md | Dataset documentation (P3) |
 | infra/ | Ansible, libvirt/cloud-init definitions |
 | k8s/ | Manifests, Helm values, Cilium and Kyverno policies |

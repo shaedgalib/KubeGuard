@@ -1,7 +1,7 @@
 # P0: Foundation (lab, repo, literature)
 
-Status: draft, pending approval
-Approved by / date:
+Status: approved
+Approved by / date: shaedgalib (researcher), 2026-10-09
 
 ## Objective
 
@@ -14,7 +14,7 @@ Metrics: 15+ papers in the literature matrix, and a written G0 decision.
 
 ## Scope
 
-In scope: repo skeleton, assistant context files, templates, KVM/libvirt, isolated network, base VM image, literature matrix, RQ v0, P1 spec, cert decision.
+In scope: repo skeleton, assistant context files, templates, KVM/libvirt, isolated network, base VM image, literature matrix, RQ v0, P1 spec.
 Out of scope: Kubernetes install (P1), any attack work.
 
 ## Units
@@ -27,10 +27,9 @@ Out of scope: Kubernetes install (P1), any attack work.
 | P0-U4 | KVM/libvirt installed | `virt-host-validate` passes | [x] |
 | P0-U5 | Isolated libvirt network | VMs reach each other, cannot reach home LAN (tested) | [x] |
 | P0-U6 | Ubuntu 24.04 cloud image, base template, snapshot | Boots, snapshot restores | [x] |
-| P0-U7 | Zotero and literature matrix | 15+ entries | [ ] |
-| P0-U8 | RQ v0 and gap analysis | `docs/specs/research-questions.md` | [ ] |
+| P0-U7 | Literature matrix | 15+ entries | [x] |
+| P0-U8 | RQ v0 and gap analysis | `docs/specs/research-questions.md` | [x] |
 | P0-U9 | P1 spec | `docs/specs/P1-cluster.md` approved | [ ] |
-| P0-U10 | AWS cert and CKS decision | Short ADR | [ ] |
 
 ## Unit details
 
@@ -145,6 +144,39 @@ Each entry records the objective, rationale, deliverables, implementation, verif
 
 **Status.** Done. Branch `feat/p0-u6`. Interface of `kg-base` is on `kg-build`; lab clones use `kg-lab` only.
 
+### P0-U7: Literature matrix
+
+**Objective.** Establish what prior work exists for the three research questions, as input to the research-gap decision at G0.
+
+**Rationale.** The project claims room for a Kubernetes security dataset that combines flow, runtime and audit signals, with benign operational changes included. This claim is checked against the literature before the cluster is built.
+
+**Deliverables.**
+- [docs/literature/README.md](../literature/README.md): scope (three areas, five or more papers each), verification rules and search keywords.
+- [docs/literature/matrix.md](../literature/matrix.md): matrix with 36 entries. 27 are verified at metadata level against Crossref, DataCite, arXiv or the primary document; 5 were checked against a host page only; 4 were not checked.
+- [docs/literature/gap-checklist.md](../literature/gap-checklist.md): eight questions answered during reading, feeding P0-U8 and G0.
+
+**Implementation.** Leads were collected by web search. The source pages were then read and the matrix records authors, venue, year, DOI and what the page states about data, method, attack coverage, baselines and limitations. Entries were then compared with Crossref, DataCite, the arXiv API or the primary document. No reference manager is used; references enter `paper/refs.bib` when a paper is cited.
+
+**Verification.** At least 15 entries with `Verified = yes`. Result: 27 of 36, verified by the assistant on the researcher's instruction. Evidence: [docs/reports/P0-U7-verification.md](../reports/P0-U7-verification.md). The check covers existence and metadata, not quality; papers are read before they are cited.
+
+**Status.** Done. Branch `docs/p0-updates`. Open items for later phases: answers in the gap checklist are provisional and feed P0-U8 and G0.
+
+### P0-U8: Research questions v0 and gap analysis
+
+**Objective.** State the research questions in testable form and the gap that justifies them, with the evidence from the literature.
+
+**Rationale.** Gate G0 requires a written decision on whether the gap is real before the cluster is built. The questions also fix what the later phases must measure.
+
+**Deliverables.**
+- [docs/specs/research-questions.md](research-questions.md): problem statement, RQ1 to RQ3 with outcome measures and sub-questions, gap analysis G1 to G6 with matrix IDs and strength ratings, threats to the analysis, scope and non-goals, G0 proposal.
+- [ADR-G0](../adr/ADR-G0-literature-gap.md): the gate decision.
+
+**Implementation.** The questions come from the programme plan and were sharpened with the literature results. The closest sources (L01, L03, L24, L30, L32) were read in full, and every gap statement cites matrix entries.
+
+**Verification.** The file exists and was approved by the researcher on 2026-10-09. The gate pass rule is met: G1 and G4 hold.
+
+**Status.** Done. Branch `docs/p0-updates`. G0 passed on 2026-10-09; G1 is to be re-checked when the L01 data files are available.
+
 ## Initial environment
 
 - The CPU reports hardware virtualization flags (`svm`), and the `kvm` and `kvm_amd` kernel modules are loaded.
@@ -168,6 +200,6 @@ G0: gap is real and RQs are final. Record in `docs/adr/ADR-G0-literature-gap.md`
 
 Items found in the AI-DLC review of Phase 0. Each is a work item.
 
-1. Approval: this specification has status `draft` and has not been approved, although construction has started. Approval is required.
+1. Approval: the specification was approved on 2026-10-09, after construction of U1 to U8 had started. The units added since then (U9) follow the approved scope.
 2. P0-U5 and P0-U6 are done. Remaining for ADR-001: the build-time policy (`kg-build` detached before attack work) is documented, and `kg-base` still has its interface on `kg-build`.
-3. Unit details: P0-U5 and later units receive their detail entry when their acceptance check passes.
+3. Unit details: later units receive their detail entry when their acceptance check passes.

@@ -119,10 +119,9 @@ Objective: Prepare the lab and the repo, and confirm the research gap before bui
 - [ ] Install KVM/libvirt and verify virtualization. Create an isolated libvirt network with no route to your home or office LAN.
 - [ ] Download Ubuntu 24.04 cloud images and plan VM sizes: control plane 4 GB, two workers 8 GB each.
 - [ ] Create the GitHub repo with the structure in section 3, a README, a Makefile skeleton and CLAUDE.md.
-- [ ] Set up Zotero and a literature matrix (paper, data, method, attack coverage, limitations).
+- [ ] Set up a literature matrix (paper, data, method, attack coverage, limitations).
 - [ ] Read at least 15 papers across Kubernetes anomaly detection, eBPF observability and LLMs for security operations.
 - [ ] Write research questions v0 and the spec for Phase 1.
-- [ ] Decide on the AWS certification renewals and whether to pursue CKS (side track).
 
 
 ### Deliverables
@@ -222,7 +221,6 @@ Objective: Harden the cluster measurably and document each control. This becomes
 ### Risks and notes
 
 - Hardening can break workloads. Apply controls incrementally and keep snapshots.
-- Optional: CKS certification preparation fits this phase well.
 
 
 ## Phase 3: Workload, attacks and data pipeline
@@ -443,7 +441,7 @@ To improve the odds, consider compressing Phase 1 into 3 weeks if you can, and f
 - [ ] Install KVM/libvirt and create the isolated network.
 - [ ] Create the GitHub repo with the structure from section 3.
 - [ ] Write CLAUDE.md with the lab rules and commands.
-- [ ] Set up Zotero and start the literature matrix (target 5 papers this week).
+- [ ] Start the literature matrix (target 5 papers this week).
 - [ ] Write the Phase 1 spec in docs/specs/.
 - [ ] Create base Ubuntu 24.04 VM images and snapshot them.
 
