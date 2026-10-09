@@ -145,6 +145,24 @@ One entry per finished unit: objective, rationale, deliverables, implementation,
 
 **Status.** Done. Branch `feat/p1-nodes`.
 
+### P1-U4: kubeadm init and join
+
+**Objective.** Create the Kubernetes control plane on `kg-control-1` and join both workers, reproducibly.
+
+**Rationale.** This is the base of the cluster. Everything later (Cilium, ingress, monitoring, hardening, attacks) runs on it, so its settings must be explicit and repeatable.
+
+**Deliverables.**
+- Roles `kubernetes_packages`, `kubeadm_init` and `kubeadm_join`, and three more plays in `infra/ansible/site.yml` (control plane, join, cluster check).
+- Pins and addressing in `infra/ansible/group_vars/all.yml`: Kubernetes 1.37.1, the repository key fingerprint, pod and service CIDRs.
+- Makefile target `kubectl` (project kubeconfig only).
+- [docs/reports/P1-U4-kubeadm-evidence.md](../reports/P1-U4-kubeadm-evidence.md).
+
+**Implementation.** `kubelet` and `kubeadm` (and `kubectl` on the control node) are installed at the pinned version from the official apt repository after the signing key is checked against a pinned fingerprint, then held. Each kubelet starts with `--node-ip` set to the node's isolated address, so the cluster never uses the temporary internet interface. `kubeadm init` runs from a configuration file (API `v1beta4`) only when `admin.conf` does not exist; workers join with a short-lived token created on the control node only when `kubelet.conf` does not exist, and the token is not logged. The admin kubeconfig is fetched to `~/.kube/kubeguard.kubeconfig` (mode 0600, outside the repository). `kube-proxy` is skipped because Cilium replaces it.
+
+**Verification.** `kubectl get nodes` from the host shows three nodes with their isolated addresses and version v1.37.1; the API answers `ok` on `/readyz`; the control-plane pods are `Running`; `kube-proxy` does not exist; the second Ansible run reports `changed=0`. Nodes are `NotReady` and CoreDNS is `Pending` until the pod network exists (P1-U5), as expected.
+
+**Status.** Done. Branch `feat/p1-nodes`.
+
 ## Risks
 
 - **RAM and disk.** The host is shared and has limited free memory. Mitigation: start with minimal sizes (D1), short Prometheus retention, thin disks, and measure idle use before scaling.

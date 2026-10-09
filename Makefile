@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help isolated-network-up isolated-network-down isolated-network-test internet-network-up internet-network-down template-vm-create template-vm-snapshot template-vm-restore-test template-vm-destroy vms vms-status vms-test vms-isolate vms-snapshot vms-restore vms-destroy ansible-setup ansible-inventory ansible-apply ansible-test
+.PHONY: help isolated-network-up isolated-network-down isolated-network-test internet-network-up internet-network-down template-vm-create template-vm-snapshot template-vm-restore-test template-vm-destroy vms vms-status vms-test vms-isolate vms-snapshot vms-restore vms-destroy ansible-setup ansible-inventory ansible-apply ansible-test kubectl
 
 help: ## List targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-28s %s\n", $$1, $$2}'
@@ -76,3 +76,7 @@ ansible-apply: ansible-inventory ## Apply all node roles (common, containerd) to
 
 ansible-test: ## Run the playbook twice; the second run must change nothing
 	infra/ansible/test-idempotence.sh
+
+# P1-U4: talk to the cluster with the project's own kubeconfig only (never another one)
+kubectl: ## Run kubectl against the KubeGuard cluster, for example: make kubectl ARGS="get nodes"
+	env -u KUBECONFIG kubectl --kubeconfig $(HOME)/.kube/kubeguard.kubeconfig $(ARGS)

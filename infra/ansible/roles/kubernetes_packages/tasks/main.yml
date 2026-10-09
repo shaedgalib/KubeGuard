@@ -1,0 +1,87 @@
+# Role kubernetes_packages: kubelet and kubeadm on every node, kubectl on the control node,
+# from the official apt repository, pinned to one version and held.
+
+- name: Install the tools needed to use the repository
+  ansible.builtin.apt:
+    name: [apt-transport-https, ca-certificates, curl, gpg]
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Create the apt keyrings directory
+  ansible.builtin.file:
+    path: /etc/apt/keyrings
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Download the repository signing key
+  ansible.builtin.get_url:
+    url: "{{ kubernetes_apt_key_url }}"
+    dest: /etc/apt/keyrings/kubernetes-apt-keyring.asc
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Check the signing key against the pinned fingerprint
+  ansible.builtin.shell: |
+    gpg --show-keys --with-colons /etc/apt/keyrings/kubernetes-apt-keyring.asc | awk -F: '/^fpr/ {print $10; exit}'
+  args:
+    executable: /bin/bash
+  register: kubernetes_key_fpr
+  changed_when: false
+  failed_when: kubernetes_key_fpr.stdout != kubernetes_apt_key_fingerprint
+
+- name: Add the Kubernetes apt repository
+  ansible.builtin.copy:
+    dest: /etc/apt/sources.list.d/kubernetes.list
+    content: "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.asc] https://pkgs.k8s.io/core:/stable:/{{ kubernetes_minor }}/deb/ /\n"
+    owner: root
+    group: root
+    mode: "0644"
+  register: kubernetes_repo
+
+- name: Refresh the package index after a repository change
+  ansible.builtin.apt:
+    update_cache: true
+  when: kubernetes_repo is changed
+
+- name: Install kubelet and kubeadm at the pinned version
+  ansible.builtin.apt:
+    name:
+      - "kubelet={{ kubernetes_package_version }}"
+      - "kubeadm={{ kubernetes_package_version }}"
+    state: present
+
+- name: Install kubectl on the control node
+  ansible.builtin.apt:
+    name: "kubectl={{ kubernetes_package_version }}"
+    state: present
+  when: inventory_hostname in groups['control']
+
+- name: Hold the Kubernetes packages so a system upgrade cannot change them
+  ansible.builtin.dpkg_selections:
+    name: "{{ item }}"
+    selection: hold
+  loop: "{{ ['kubelet', 'kubeadm'] + (['kubectl'] if inventory_hostname in groups['control'] else []) }}"
+
+- name: Make each kubelet use the node's isolated address
+  ansible.builtin.copy:
+    dest: /etc/default/kubelet
+    content: "KUBELET_EXTRA_ARGS=--node-ip={{ ansible_host }}\n"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Enable kubelet (it starts when kubeadm configures the node)
+  ansible.builtin.systemd:
+    name: kubelet
+    enabled: true
+
+# Checks
+- name: Check the installed kubeadm version
+  ansible.builtin.command: kubeadm version -o short
+  register: kubernetes_kubeadm_version
+  changed_when: false
+  failed_when: kubernetes_kubeadm_version.stdout != "v" ~ kubernetes_version

@@ -23,3 +23,17 @@ runc_sha256: "599f6f94ff8c5057241eff0d54c3c74f95c34935b6457b33fe545defc61e9488"
 crictl_version: "1.37.0"
 crictl_url: "https://github.com/kubernetes-sigs/cri-tools/releases/download/v{{ crictl_version }}/crictl-v{{ crictl_version }}-linux-amd64.tar.gz"
 crictl_sha256: "67c983ee8a6bbce73d39a186e633c5fe4f8a70e62171ac3bd92a9c1b2c601670"
+
+# Kubernetes packages (P1-U4), from the official apt repository pkgs.k8s.io.
+kubernetes_minor: "v1.37"
+kubernetes_version: "1.37.1"
+kubernetes_package_version: "1.37.1-1.1"
+kubernetes_apt_key_url: "https://pkgs.k8s.io/core:/stable:/{{ kubernetes_minor }}/deb/Release.key"
+# Fingerprint of the repository signing key (expires 2026-12-29; a new key means a new pin).
+kubernetes_apt_key_fingerprint: "DE15B14486CD377B9E876E1A234654DA9A296436"
+
+# Cluster addressing (design decision D3). None of these overlap the lab networks, the home
+# LAN, Docker or the libvirt default network.
+kubernetes_pod_cidr: "10.244.0.0/16"
+kubernetes_service_cidr: "10.96.0.0/16"
+kubernetes_cluster_name: "kubeguard"
