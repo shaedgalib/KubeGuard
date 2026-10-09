@@ -29,6 +29,70 @@ In scope:
 
 Out of scope: hardening (Phase 2), workloads and attacks (Phase 3), detection (Phase 4), eBPF feature work (Phase 5), LLM work (Phase 6), multi-node production features such as a highly available control plane.
 
+## Flow of Phase 1
+
+What gets built, and why in this order. Units marked (done) are finished; the rest are planned.
+
+```
+P1-U1  node VMs from the template (done) ........... machines exist, fixed addresses
+  │
+P1-U2  Ansible role common (done) .................. swap off, kernel modules, sysctl
+  │
+P1-U3  containerd (done) ........................... a container runtime on every node
+  │
+P1-U4  kubeadm init and join (done) ................ control plane up, workers joined, nodes NotReady
+  │
+P1-U5  Cilium + Hubble ............................. pod network, replaces kube-proxy: nodes Ready
+  │
+P1-U6  MetalLB, ingress or Gateway, storage ........ LoadBalancer IPs, a front door, disk for pods
+P1-U12 ADRs: CNI, load balancer, ingress, storage .. written as each choice is built
+  │
+P1-U7  Prometheus and Grafana ...................... baseline monitoring (RAM gets tight here)
+P1-U8  sample app ................................. reached from the host; its flow appears in Hubble
+  │
+P1-U9  etcd snapshot and restore ................... the cluster state can be recovered
+P1-U10 node drain, failure and rejoin .............. the cluster survives losing a node
+  │
+P1-U11 make up / down / reset / cluster ............ one command from clean VMs to a Ready cluster
+P1-U13 rebuild time ................................ measured, target under 40 minutes
+  │
+P1-U14 Phase 2 spec ................................ hardening plan, approved before it starts
+```
+
+Why this order:
+1. **Machines before software (U1 to U3).** Kubernetes needs identical, prepared nodes with a runtime. Doing this with Ansible first means every later step can be repeated on a rebuilt node.
+2. **The control plane before the network (U4 before U5).** `kubeadm` creates the API server and joins the workers. Nodes stay `NotReady` until a pod network exists, which is why Cilium comes next and kube-proxy was skipped at init.
+3. **The pod network before anything that serves traffic (U5 before U6).** MetalLB, ingress and storage all rely on pods being able to talk to each other and on Services working.
+4. **Monitoring and the sample app after the network (U7, U8).** Both need a working cluster, and U8 proves U5 and U6 together: a request from the host passes MetalLB and ingress, and Hubble shows the flow.
+5. **Drills after the cluster has something worth recovering (U9, U10).** The etcd restore and node-failure drills are only meaningful once the cluster holds real state.
+6. **Automation last (U11, U13).** Wrapping the steps in `make` is only reliable once each step works by hand, and the rebuild time can only be measured on the complete chain.
+7. **The Phase 2 spec at the end (U14).** Hardening is planned from what Phase 1 actually produced.
+
+### In AWS terms
+
+| In this lab | Closest AWS idea |
+|---|---|
+| libvirt and KVM on the host | The hypervisor under EC2 |
+| `kg-isolated-network` (no internet) | A private subnet with no route to an internet or NAT gateway |
+| `kg-internet-access-network` (build time only) | A subnet reached through a NAT gateway, attached only while installing |
+| `kg-template-vm` and its snapshot | An AMI and an EBS snapshot |
+| cloud-init seed | EC2 user data |
+| Node VMs `kg-control-1`, `kg-worker-1`, `kg-worker-2` | EC2 instances: one for the control plane, two as a node group |
+| DHCP reservations (fixed node addresses) | Fixed private IPs on network interfaces |
+| Ansible roles | Systems Manager State Manager, or any configuration management |
+| containerd | The container runtime on EKS worker nodes |
+| `kubeadm init` and `join` | What EKS does for you when it creates a managed control plane and joins nodes |
+| The project kubeconfig | The file `aws eks update-kubeconfig` writes |
+| Cilium | VPC CNI plus kube-proxy |
+| Hubble | VPC Flow Logs, but pod-aware and with policy verdicts |
+| MetalLB | The network load balancer that Kubernetes creates for a `LoadBalancer` Service |
+| Ingress or Gateway API | An application load balancer with the AWS Load Balancer Controller |
+| local-path storage | EBS volumes through the EBS CSI driver |
+| Prometheus and Grafana | CloudWatch Container Insights, or Managed Prometheus and Managed Grafana |
+| etcd snapshot and restore | Something EKS does for you; here you do it yourself |
+| Node drain and failure drills | Replacing instances in a managed node group |
+| `make cluster` | Terraform or eksctl: one command that builds the environment |
+
 ## Design decisions to confirm
 
 Names follow [docs/naming.md](../naming.md). Accepted by the researcher on 2026-10-09 as the working plan for Phase 1. Any change found necessary during the build is recorded under "Amendments" below, and becomes an ADR where it is a major choice. Each decision also becomes an ADR or a note in the relevant unit.
