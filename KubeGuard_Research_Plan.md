@@ -122,7 +122,6 @@ Objective: Prepare the lab and the repo, and confirm the research gap before bui
 - [ ] Set up a literature matrix (paper, data, method, attack coverage, limitations).
 - [ ] Read at least 15 papers across Kubernetes anomaly detection, eBPF observability and LLMs for security operations.
 - [ ] Write research questions v0 and the spec for Phase 1.
-- [ ] Decide on the AWS certification renewals and whether to pursue CKS (side track).
 
 
 ### Deliverables
@@ -222,7 +221,6 @@ Objective: Harden the cluster measurably and document each control. This becomes
 ### Risks and notes
 
 - Hardening can break workloads. Apply controls incrementally and keep snapshots.
-- Optional: CKS certification preparation fits this phase well.
 
 
 ## Phase 3: Workload, attacks and data pipeline
