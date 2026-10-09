@@ -7,7 +7,12 @@ KEY=${KG_LAB_KEY:-$HOME/.ssh/kubeguard-lab.pub}
 HERE=$(cd "$(dirname "$0")" && pwd)
 NODES="kg-test-1-vm kg-test-2-vm"
 
-vm_ip() { $V domifaddr "$1" --source lease 2>/dev/null | awk '/ipv4/ {sub("/.*","",$4); print $4; exit}'; }
+vm_ip() {
+  # newest DHCP lease of the VM's isolated-network interface (a VM can hold an older, stale lease too)
+  local mac; mac=$($V domiflist "$1" 2>/dev/null | awk '/kg-isolated-network/ {print $5; exit}')
+  [ -n "$mac" ] || return 0
+  $V net-dhcp-leases kg-isolated-network --mac "$mac" 2>/dev/null | awk '/ipv4/ {print $1" "$2" "$5}' | sort -r | head -1 | awk '{sub("/.*","",$3); print $3}'
+}
 vm_ssh() {
   ssh -i "${KEY%.pub}" -o IdentitiesOnly=yes -o BatchMode=yes -o ConnectTimeout=5 \
       -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR \

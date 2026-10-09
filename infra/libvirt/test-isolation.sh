@@ -13,7 +13,10 @@ bad()  { echo "FAIL  $*"; fail=1; }
 $V net-info "$NET" 2>/dev/null | grep -q 'Active:.*yes' && ok "network $NET is active" || bad "network $NET not active"
 $V net-dumpxml "$NET" | grep -q '<forward' && bad "network has a <forward> element (not isolated)" || ok "no <forward> element"
 $V net-dumpxml "$NET" | grep -q "address='10.77.0.1'" && ok "subnet is 10.77.0.0/24" || bad "unexpected subnet"
-if sudo nft list ruleset 2>/dev/null | grep -q 'kg-isolated-br.*masquerade\|masquerade.*10\.77\.0'; then
+rules=$(sudo -n nft list ruleset 2>/dev/null || sudo nft list ruleset 2>/dev/null || true)
+if [ -z "$rules" ]; then
+  echo "SKIP  masquerade check (cannot read nft rules; run this script from a terminal where sudo works)"
+elif grep -q 'kg-isolated-br.*masquerade\|masquerade.*10\.77\.0' <<<"$rules"; then
   bad "masquerade rule exists for 10.77.0.0/24"
 else
   ok "no NAT/masquerade rule for the lab subnet"
