@@ -25,8 +25,8 @@ Out of scope: Kubernetes install (P1), any attack work.
 | P0-U2 | CLAUDE.md | Covers isolation, kubeconfig, snapshots, no-AI-numbers | [x] |
 | P0-U3 | Spec, ADR, experiment-log templates | Templates present | [x] |
 | P0-U4 | KVM/libvirt installed | `virt-host-validate` passes | [x] |
-| P0-U5 | Isolated libvirt network | VMs reach each other, cannot reach home LAN (tested) | [~] |
-| P0-U6 | Ubuntu 24.04 cloud image, base template, snapshot | Boots, snapshot restores | [ ] |
+| P0-U5 | Isolated libvirt network | VMs reach each other, cannot reach home LAN (tested) | [x] |
+| P0-U6 | Ubuntu 24.04 cloud image, base template, snapshot | Boots, snapshot restores | [x] |
 | P0-U7 | Zotero and literature matrix | 15+ entries | [ ] |
 | P0-U8 | RQ v0 and gap analysis | `docs/specs/research-questions.md` | [ ] |
 | P0-U9 | P1 spec | `docs/specs/P1-cluster.md` approved | [ ] |
@@ -112,15 +112,38 @@ Each entry records the objective, rationale, deliverables, implementation, verif
 - `infra/libvirt/kg-lab-net.xml`: libvirt network `kg-lab`. Bridge `virbr-kg`, subnet `10.77.0.0/24`, gateway `10.77.0.1`, DHCP range `10.77.0.100-10.77.0.199`. The definition has no `<forward>` element, so libvirt installs no NAT and no routing for it.
 - `infra/libvirt/test-isolation.sh`: acceptance script. Host-side checks cover network state, absence of `<forward>`, subnet and absence of a masquerade rule. When given two VM addresses and an SSH user, it also checks that VM A reaches VM B and cannot reach the LAN gateway or `1.1.1.1`.
 - Makefile targets `net-up`, `net-down`, `net-test`.
+- `infra/libvirt/clone-test-vms.sh` and `infra/cloud-init/clone-user-data.tpl`: clone `kg-base` into two test VMs on `kg-lab` only, and run the in-VM checks.
 - [ADR-001](../adr/ADR-001-lab-network-isolation.md) and evidence [docs/reports/P0-U5-network-evidence.md](../reports/P0-U5-network-evidence.md).
 
 **Implementation.** The subnet was chosen to avoid the home LAN (`172.16.212.0/23`, `172.16.214.0/23`), Docker (`172.17.0.0/16` to `172.21.0.0/16`) and the default libvirt network (`192.168.122.0/24`). `make net-up` runs `virsh net-define`, `net-autostart` and `net-start`. `make net-test` runs the acceptance script.
 
-**Verification.** Host-side checks pass: network active, no `<forward>`, subnet `10.77.0.0/24`, no masquerade rule. In-VM checks are pending the guests created in P0-U6.
+**Verification.** All checks pass. Host side: network active, no `<forward>`, subnet `10.77.0.0/24`, no masquerade rule. In two clones of the P0-U6 base VM: VM A reaches VM B, VM A cannot reach the LAN gateway `172.16.212.1` and cannot reach the internet. The default-route gateway is the one tested; the second host LAN route (`172.16.214.1`) is not covered by the script.
 
 **Reference comparison.** The network corresponds to a VPC subnet with no internet gateway, no NAT gateway and no peering, whose route table contains only the local route. The isolation script corresponds to a reachability analysis that finds no path to the LAN.
 
-**Status.** In progress. Branch `feat/p0-u5-network`. Host-side checks verified on 2026-10-09. In-VM checks are completed in P0-U6, after which the status becomes done.
+**Status.** Done. Network and host-side checks on branch `feat/p0-u5-network`; in-VM checks completed on 2026-10-09 on branch `feat/p0-u6`.
+
+### P0-U6: Base VM image and snapshot
+
+**Objective.** Provide a verified Ubuntu 24.04 base VM with a restorable snapshot, from which lab nodes are cloned.
+
+**Rationale.** Every lab node starts from the same known state. A snapshot allows a return to that state before each attack run and hardening change, as required by the lab rules. Resource use is kept minimal (1 vCPU, 1 GiB RAM, 10 GiB thin disk) and is increased only when a later phase requires it.
+
+**Deliverables.**
+- Storage pool `kg-images` at `/var/lib/libvirt/images/kubeguard` (host, not in git) holding `noble-base.img`, the checksum-verified Ubuntu 24.04 cloud image.
+- `infra/libvirt/kg-build-net.xml`: temporary NAT network `kg-build` (`10.78.0.0/24`) for builds, as defined in [ADR-001](../adr/ADR-001-lab-network-isolation.md).
+- `infra/cloud-init/user-data.tpl` and `meta-data`: user `ubuntu` with key-only login and passwordless sudo, packages `qemu-guest-agent`, `curl`, `jq`, system upgrade, power-off on completion. The SSH public key is injected at build time and is not stored in git.
+- `infra/libvirt/build-base-vm.sh`: `create`, `snapshot`, `restore-test`, `destroy`. Makefile targets `build-net-up`, `build-net-down`, `base-vm`, `base-snapshot`, `base-restore-test`, `base-destroy`.
+- Snapshot `base-clean` of VM `kg-base`.
+- Evidence: [docs/reports/P0-U6-base-image-evidence.md](../reports/P0-U6-base-image-evidence.md).
+
+**Implementation.** The image was downloaded from `cloud-images.ubuntu.com` and verified with `sha256sum -c`. A dedicated lab key pair (`~/.ssh/kubeguard-lab`) was generated, separate from any GitHub or work key. `make build-net-up` and `make base-vm` created the network and the VM, which provisioned itself through cloud-init and powered off. `make base-snapshot` created `base-clean`.
+
+**Verification.** `make base-restore-test` boots the VM, writes a marker file, reverts to `base-clean`, boots again and confirms that the marker is gone. The test passed. It also confirms SSH access with the lab key.
+
+**Reference comparison.** The base image corresponds to an AMI, the cloud-init file to EC2 user data, and the snapshot to an EBS snapshot used to restore a known state.
+
+**Status.** Done. Branch `feat/p0-u6`. Interface of `kg-base` is on `kg-build`; lab clones use `kg-lab` only.
 
 ## Initial environment
 
@@ -146,5 +169,5 @@ G0: gap is real and RQs are final. Record in `docs/adr/ADR-G0-literature-gap.md`
 Items found in the AI-DLC review of Phase 0. Each is a work item.
 
 1. Approval: this specification has status `draft` and has not been approved, although construction has started. Approval is required.
-2. P0-U5: the build-time internet policy is documented in ADR-001. The `kg-build` network and the in-VM isolation tests are completed in P0-U6.
+2. P0-U5 and P0-U6 are done. Remaining for ADR-001: the build-time policy (`kg-build` detached before attack work) is documented, and `kg-base` still has its interface on `kg-build`.
 3. Unit details: P0-U5 and later units receive their detail entry when their acceptance check passes.
