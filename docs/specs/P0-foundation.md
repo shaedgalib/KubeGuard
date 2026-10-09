@@ -27,7 +27,7 @@ Out of scope: Kubernetes install (P1), any attack work.
 | P0-U4 | KVM/libvirt installed | `virt-host-validate` passes | [x] |
 | P0-U5 | Isolated libvirt network | VMs reach each other, cannot reach home LAN (tested) | [x] |
 | P0-U6 | Ubuntu 24.04 cloud image, base template, snapshot | Boots, snapshot restores | [x] |
-| P0-U7 | Zotero and literature matrix | 15+ entries | [ ] |
+| P0-U7 | Zotero and literature matrix | 15+ entries | [~] |
 | P0-U8 | RQ v0 and gap analysis | `docs/specs/research-questions.md` | [ ] |
 | P0-U9 | P1 spec | `docs/specs/P1-cluster.md` approved | [ ] |
 | P0-U10 | AWS cert and CKS decision | Short ADR | [ ] |
@@ -144,6 +144,23 @@ Each entry records the objective, rationale, deliverables, implementation, verif
 **Reference comparison.** The base image corresponds to an AMI, the cloud-init file to EC2 user data, and the snapshot to an EBS snapshot used to restore a known state.
 
 **Status.** Done. Branch `feat/p0-u6`. Interface of `kg-base` is on `kg-build`; lab clones use `kg-lab` only.
+
+### P0-U7: Literature matrix
+
+**Objective.** Establish what prior work exists for the three research questions, as input to the research-gap decision at G0.
+
+**Rationale.** The project claims room for a Kubernetes security dataset that combines flow, runtime and audit signals, with benign operational changes included. This claim is checked against the literature before the cluster is built.
+
+**Deliverables.**
+- [docs/literature/README.md](../literature/README.md): scope (three areas, five or more papers each), verification rules, search keywords, Zotero convention.
+- [docs/literature/matrix.md](../literature/matrix.md): matrix with 23 leads from web search. All are unverified.
+- [docs/literature/gap-checklist.md](../literature/gap-checklist.md): eight questions answered during reading, feeding P0-U8 and G0.
+
+**Implementation.** Leads were collected by web search, recording only titles and links. Authors, venues, years and results are entered by the researcher after opening each paper. The matrix columns Data, Method, Attack coverage, Baselines and Limitations are intentionally empty.
+
+**Verification.** At least 15 entries with `Verified = yes`. Currently 0 of 23.
+
+**Status.** In progress. Branch `docs/p0-updates`. Remaining work: the researcher verifies leads in Zotero and reads them; additional searches for the weaker areas (RQ2 overhead studies, mixed-signal datasets).
 
 ## Initial environment
 

@@ -1,0 +1,33 @@
+# Literature matrix (P0-U7)
+
+All rows are **leads from web search, not verified papers**. Titles are as they appeared in search results and may be truncated or mismatched. Follow the rules in [README.md](README.md): open each lead, record the metadata in Zotero, then set `Verified`. Columns after `Snippet note` are filled by the researcher after reading.
+
+Count: 23 leads, 0 verified. Target: 15 verified entries.
+
+| ID | Area | Title as seen in search | Link | Type (guess) | Snippet note | RQ | Zotero key | Data | Method | Attack coverage | Baselines | Limitations | Verified |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| L01 | A | AssureMOSS Kubernetes Run-time Monitoring Dataset | <https://data.4tu.nl/datasets/629887f7-f6aa-4d77-b0db-83822a92c582> | dataset | Search snippet: NetFlow data from a Kubernetes cluster, benign and attack flows, labels per flow | RQ1 | | | | | | | no |
+| L02 | A | A method for anomaly detection in Kubernetes clusters using an LSTM autoencoder | <https://heraldts.khmnu.edu.ua/index.php/heraldts/article/view/2439> | method paper | Snippet: LSTM autoencoder on telemetry, reconstruction error | RQ1 | | | | | | | no |
+| L03 | A | Kubernetes Dataset for Misuse Detection (network flows); source link to be matched | <https://open.metu.edu.tr/handle/11511/107549> | dataset (match uncertain) | Snippet: network flows from a Kubernetes cluster, shared publicly | RQ1 | | | | | | | no |
+| L04 | A | Labelled resource-usage dataset for post-compromise detection in Kubernetes; source link not found | none | dataset (source unknown) | Snippet: CPU, memory, disk I/O traces, Prometheus exporters | RQ1 | | | | | | | no |
+| L05 | A | KubAnomaly (neural network anomaly detection on Kubernetes); source link not found | none | method paper (source unknown) | Snippet: classification models for anomaly detection on Kubernetes | RQ1 | | | | | | | no |
+| L06 | A | Anomaly detection on system audit events | <https://lup.lub.lu.se/student-papers/record/9214194> | student thesis | Snippet: Isolation Forest on audit events | RQ1 | | | | | | | no |
+| L07 | A | Docker container escape attack dataset: capabilities and system call traces | <https://ieee-dataport.org/documents/docker-container-escape-attack-dataset-capabilities-and-system-call-traces> | dataset | Snippet: syscall sequences and capabilities, benign and hostile containers | RQ1 | | | | | | | no |
+| L08 | A | Resource-Interaction Graph: efficient graph representation for anomaly detection | <https://arxiv.org/pdf/2212.08525> | method paper (arXiv) | Appeared in a container-escape and anomaly search; relevance unchecked | RQ1 | | | | | | | no |
+| L09 | A | A real time intrusion detection system based on OC-SVM for containerized applications | <https://pure.uva.nl/ws/files/141635157/A_real_time_intrusion_detection_system_based_on_OC_SVM_for_containerized_applications.pdf> | method paper | Snippet: one-class SVM for containers | RQ1 | | | | | | | no |
+| L10 | A | AnoMod: a dataset for anomaly detection and root cause analysis in microservice systems | <https://2026.msrconf.org/details/msr-2026-data-and-tool-showcase-track/21/AnoMod-A-Dataset-for-Anomaly-Detection-and-Root-Cause-Analysis-in-Microservice-Syste> | dataset (MSR data track) | Snippet: logs, metrics, traces, API responses, code coverage; fault injection, not attacks | RQ1 | | | | | | | no |
+| L11 | A | Eadro: an end-to-end troubleshooting framework for microservices on multi-source data | <https://arxiv.org/pdf/2302.05092> | method paper (arXiv) | Faults, not attacks; relevant as multi-source baseline | RQ1 | | | | | | | no |
+| L12 | A | A scenario-oriented benchmark for assessing AIOps algorithms in microservice management | <https://arxiv.org/html/2407.14532v1> | benchmark (arXiv) | Faults, not attacks | RQ1 | | | | | | | no |
+| L13 | B | Comparative analysis of eBPF-based runtime security monitoring tools in monitoring and threat detection on Kubernetes | <https://www.scitepress.org/PublishedPapers/2025/142727> | study (SCITEPRESS) | Snippet: compares Falco, Tetragon, Tracee on detection time, false positives, CPU, memory | RQ2 | | | | | | | no |
+| L14 | B | Leveraging eBPF for enhanced Kubernetes observability and security | <https://norma.ncirl.ie/8042/> | master's thesis | Snippet: eBPF for observability and security in Kubernetes | RQ2 | | | | | | | no |
+| L15 | B | Cilium documentation: Creating policies from verdicts | <https://cilium.readthedocs.io/en/stable/security/policy-creation/> | tool documentation | Not a paper; context for Hubble verdicts and policy creation | RQ2, RQ3 | | | | | | | no |
+| L16 | C | SecAlertBench: evaluating LLMs for Tier-1 alert triage in SOCs | <https://github.com/Dxsssu/SecAlertBench> | repository (paper not confirmed) | Snippet: benchmark of enterprise SOC alerts, many LLMs | RQ3 | | | | | | | no |
+| L17 | C | Before You Hand Over the Wheel: evaluating LLMs (alert triage); match uncertain | <https://arxiv.org/html/2603.06422v1> | paper (arXiv) | Appeared in the triage search; relevance unchecked | RQ3 | | | | | | | no |
+| L18 | C | Evaluation of LLM agents for the SOC Tier 1 analyst triage process | <https://www.utupub.fi/handle/11111/19158> | thesis | Snippet: five LLMs on Tier-1 triage | RQ3 | | | | | | | no |
+| L19 | C | NetPolAgent: self-correcting multi-agent LLM pipeline for verified Kubernetes network policy; PDF match uncertain | <https://dl.ifip.org/db/conf/networking/networking2026/1571260960.pdf> | paper (conference, match uncertain) | Snippet: generator, critic, verifier, refiner agents; policy from natural language | RQ3 | | | | | | | no |
+| L20 | C | Poisoning the Watchtower: prompt injection attacks against LLM-augmented security operations through adversarial log content | <https://arxiv.org/pdf/2605.24421> | paper (arXiv) | Snippet: prompt injection through log content in SOC pipelines | RQ3 | | | | | | | no |
+| L21 | C | LogJack: indirect prompt injection through cloud logs against LLM debugging agents | <https://arxiv.org/pdf/2604.15368> | paper (arXiv) | Snippet: indirect prompt injection via cloud logs | RQ3 | | | | | | | no |
+| L22 | C | Context contamination in LLM analysis of network (title truncated in results) | <https://arxiv.org/abs/2607.14493> | paper (arXiv) | Title incomplete in search result | RQ3 | | | | | | | no |
+| L23 | C | SIABench: an agentic evaluation framework for security incident analysis; no link found | none | paper (source unknown) | Snippet: incident-analysis and alert-triage tasks | RQ3 | | | | | | | no |
+
+Area: A = Kubernetes detection and datasets, B = eBPF observability and runtime security, C = LLMs for security operations.
