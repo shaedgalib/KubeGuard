@@ -14,21 +14,17 @@ Acceptance check for P0-U7: 15 or more entries in `matrix.md` with `Verified = y
 
 ## Rules
 
-1. Entries in `matrix.md` start as **leads**, found by web search by the assistant. The assistant may then read the source and record what it states (`Check level`: abstract page, or the PDF pages listed). This confirms that the entry exists and matches its metadata. It is not a review of the full text and does not replace the researcher's verification.
-2. (Delegated on 2026-10-09.) The assistant compared entries with Crossref, DataCite, the arXiv API or the primary PDF and set `Verified` where the metadata match; see `docs/reports/P0-U7-verification.md`. For a paper that will be cited, the researcher opens it, stores it in Zotero and reads it. The researcher opens every lead and records title, authors, venue, year and DOI or arXiv identifier in Zotero. Only then is `Verified` set to `yes` with the date.
-3. Theses, repositories, vendor blogs and documentation are marked in the `Type` column. They may inform the review but do not count towards the 15 papers unless the researcher decides otherwise.
-4. The assistant never writes claims about a paper's results into the matrix. The columns Data, Method, Attack coverage, Baselines and Limitations are filled by the researcher after reading.
-5. References enter `paper/refs.bib` only after verification.
+1. Entries in `matrix.md` start as **leads** found by web search.
+2. Each lead is checked against an official record: Crossref or DataCite for DOIs, the arXiv API for arXiv IDs, or the primary document when there is no identifier. The check covers title, authors, year and venue. Entries that match are marked `Verified` with the date. The evidence is in `docs/reports/P0-U7-verification.md`.
+3. Reading level is recorded in `Check level` (abstract page or PDF pages read). The columns Data, Method, Attack coverage, Baselines and Limitations repeat what the pages read state. "Not stated" means the pages read did not say.
+4. Theses, repositories, vendor blogs and documentation are marked in the `Venue / type` column. They may inform the review but do not count as papers.
+5. Verification is metadata-level. A paper is read in full before it is cited. References enter `paper/refs.bib` only at that point.
 
 ## Search keywords used so far
 
 Kubernetes intrusion detection dataset; Kubernetes anomaly detection audit logs; eBPF container runtime security overhead; Falco Tetragon Tracee comparison; microservice anomaly detection benchmark dataset; container escape syscall dataset; Cilium Hubble flow anomaly detection; LLM SOC alert triage; LLM Kubernetes network policy generation; prompt injection through logs.
 
 Searches added on 2026-10-09: eBPF versus packet capture and sidecar overhead; concept drift and benign changes; LLM Kubernetes misconfiguration; lateral movement datasets; eBPF feature extraction for ML. Suggested next: graph models over service dependency graphs; LLM explanation of IDS alerts; Kubernetes audit-log datasets; Cilium and Hubble flow studies.
-
-## Zotero convention
-
-Collection `KubeGuard` with sub-collections `A-k8s-detection`, `B-ebpf`, `C-llm`. Tags: `rq1`, `rq2`, `rq3`, `dataset`, `read`, `verified`. The library stays outside git. The citation key in the matrix is the Zotero key.
 
 ## Files
 
