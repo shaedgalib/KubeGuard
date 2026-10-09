@@ -38,5 +38,9 @@ Corrections found: L32 authors (Crossref order and spelling), L28 year (2026 per
 | L31 | METANOIA: A Lifelong Intrusion Detection and Investigation System for  | registry: arXiv API | verified | Title, authors and year match the record |
 | L32 | Detecting Cryptojacking Containers Using eBPF-Based Security Runtime a | registry: Crossref | verified | Authors corrected to Crossref record |
 | L33 | eBPF-based Cryptojacking Container Detection Framework in Kubernetes | host page only | not counted | Host page only (university repository) |
+| L04 | Pod-Level Labelled Resource Utilization Dataset for Intrusion Detection in Kubernetes | registry: DataCite | verified | DOI 10.21227/mg8w-cs31, title, five authors and year match; found by the researcher |
+| L18 | Evaluation of LLM Agents for the SOC Tier 1 Analyst Triage Process | primary document (thesis PDF) | verified | Title, author, institution and date read from the thesis; provided by the researcher |
+| L34 | Analyzing and Mitigating (with LLMs) the Security Misconfigurations of Helm Charts | registry: arXiv API | verified | Title, three authors and year match; PDF provided by the researcher |
+| L37 | ENCODE: Encoding NetFlows for Network Anomaly Detection | registry: arXiv API | verified | Title, five authors and year match |
 
-Result: 23 entries verified (target 15). Not counted: L06, L10, L14, L16, L33 (host page only). Not checked: L04, L05, L15, L18, L34, L35, L36.
+Result: 27 entries verified (target 15). Not counted: L06, L10, L14, L16, L33 (host page only). Not checked: L05, L15, L35, L36.
