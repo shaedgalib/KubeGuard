@@ -1,7 +1,7 @@
 # P0: Foundation (lab, repo, literature)
 
-Status: draft, pending approval
-Approved by / date:
+Status: approved
+Approved by / date: shaedgalib (researcher), 2026-10-09
 
 ## Objective
 
@@ -201,6 +201,6 @@ G0: gap is real and RQs are final. Record in `docs/adr/ADR-G0-literature-gap.md`
 
 Items found in the AI-DLC review of Phase 0. Each is a work item.
 
-1. Approval: this specification has status `draft` and has not been approved, although construction has started. Approval is required.
+1. Approval: the specification was approved on 2026-10-09, after construction of U1 to U8 had started. The units added since then (U9, U10) follow the approved scope.
 2. P0-U5 and P0-U6 are done. Remaining for ADR-001: the build-time policy (`kg-build` detached before attack work) is documented, and `kg-base` still has its interface on `kg-build`.
 3. Unit details: later units receive their detail entry when their acceptance check passes.
