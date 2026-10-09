@@ -1,0 +1,14 @@
+<!-- Temporary build network (ADR-001). NAT gives guests internet access so the
+     base image can install packages. Attach a guest only while building and
+     detach it before any attack work. Subnet 10.78.0.0/24 does not overlap the
+     home LAN, Docker, libvirt default or kg-lab (10.77.0.0/24). -->
+<network>
+  <name>kg-build</name>
+  <bridge name="virbr-build" stp="on" delay="0"/>
+  <forward mode="nat"/>
+  <ip address="10.78.0.1" netmask="255.255.255.0">
+    <dhcp>
+      <range start="10.78.0.100" end="10.78.0.199"/>
+    </dhcp>
+  </ip>
+</network>

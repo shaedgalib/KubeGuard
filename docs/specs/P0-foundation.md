@@ -26,7 +26,7 @@ Out of scope: Kubernetes install (P1), any attack work.
 | P0-U3 | Spec, ADR, experiment-log templates | Templates present | [x] |
 | P0-U4 | KVM/libvirt installed | `virt-host-validate` passes | [x] |
 | P0-U5 | Isolated libvirt network | VMs reach each other, cannot reach home LAN (tested) | [~] |
-| P0-U6 | Ubuntu 24.04 cloud image, base template, snapshot | Boots, snapshot restores | [ ] |
+| P0-U6 | Ubuntu 24.04 cloud image, base template, snapshot | Boots, snapshot restores | [x] |
 | P0-U7 | Zotero and literature matrix | 15+ entries | [ ] |
 | P0-U8 | RQ v0 and gap analysis | `docs/specs/research-questions.md` | [ ] |
 | P0-U9 | P1 spec | `docs/specs/P1-cluster.md` approved | [ ] |
@@ -121,6 +121,28 @@ Each entry records the objective, rationale, deliverables, implementation, verif
 **Reference comparison.** The network corresponds to a VPC subnet with no internet gateway, no NAT gateway and no peering, whose route table contains only the local route. The isolation script corresponds to a reachability analysis that finds no path to the LAN.
 
 **Status.** In progress. Branch `feat/p0-u5-network`. Host-side checks verified on 2026-10-09. In-VM checks are completed in P0-U6, after which the status becomes done.
+
+### P0-U6: Base VM image and snapshot
+
+**Objective.** Provide a verified Ubuntu 24.04 base VM with a restorable snapshot, from which lab nodes are cloned.
+
+**Rationale.** Every lab node starts from the same known state. A snapshot allows a return to that state before each attack run and hardening change, as required by the lab rules. Resource use is kept minimal (1 vCPU, 1 GiB RAM, 10 GiB thin disk) and is increased only when a later phase requires it.
+
+**Deliverables.**
+- Storage pool `kg-images` at `/var/lib/libvirt/images/kubeguard` (host, not in git) holding `noble-base.img`, the checksum-verified Ubuntu 24.04 cloud image.
+- `infra/libvirt/kg-build-net.xml`: temporary NAT network `kg-build` (`10.78.0.0/24`) for builds, as defined in [ADR-001](../adr/ADR-001-lab-network-isolation.md).
+- `infra/cloud-init/user-data.tpl` and `meta-data`: user `ubuntu` with key-only login and passwordless sudo, packages `qemu-guest-agent`, `curl`, `jq`, system upgrade, power-off on completion. The SSH public key is injected at build time and is not stored in git.
+- `infra/libvirt/build-base-vm.sh`: `create`, `snapshot`, `restore-test`, `destroy`. Makefile targets `build-net-up`, `build-net-down`, `base-vm`, `base-snapshot`, `base-restore-test`, `base-destroy`.
+- Snapshot `base-clean` of VM `kg-base`.
+- Evidence: [docs/reports/P0-U6-base-image-evidence.md](../reports/P0-U6-base-image-evidence.md).
+
+**Implementation.** The image was downloaded from `cloud-images.ubuntu.com` and verified with `sha256sum -c`. A dedicated lab key pair (`~/.ssh/kubeguard-lab`) was generated, separate from any GitHub or work key. `make build-net-up` and `make base-vm` created the network and the VM, which provisioned itself through cloud-init and powered off. `make base-snapshot` created `base-clean`.
+
+**Verification.** `make base-restore-test` boots the VM, writes a marker file, reverts to `base-clean`, boots again and confirms that the marker is gone. The test passed. It also confirms SSH access with the lab key.
+
+**Reference comparison.** The base image corresponds to an AMI, the cloud-init file to EC2 user data, and the snapshot to an EBS snapshot used to restore a known state.
+
+**Status.** Done. Branch `feat/p0-u6`. Interface of `kg-base` is on `kg-build`; lab clones use `kg-lab` only.
 
 ## Initial environment
 
