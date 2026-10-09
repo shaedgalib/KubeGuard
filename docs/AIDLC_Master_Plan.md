@@ -142,11 +142,11 @@ Each phase lists its units in dependency order. Unit IDs are stable references f
 | P1-U6 | MetalLB (L2 pool), ingress or Gateway API, local-path storage | LoadBalancer IP assigned, PVC binds | `feat/p1-cluster-networking` | [ ] |
 | P1-U7 | kube-prometheus-stack with short retention | Grafana dashboards load, RAM within budget | `feat/p1-apps-monitoring` | [ ] |
 | P1-U8 | Sample app via MetalLB and ingress, flows seen in Hubble | Request from host succeeds, flow appears | `feat/p1-apps-monitoring` | [ ] |
-| P1-U9 | etcd snapshot and restore drill | Restore tested, steps in runbook | `feat/p1-drills` | [ ] |
-| P1-U10 | Node drain, node failure and rejoin drills | Cluster recovers, steps in runbook | `feat/p1-drills` | [ ] |
-| P1-U11 | `make up`, `make down`, `make reset`, `make cluster` | Clean VMs to Ready cluster with one command | `feat/p1-automation` | [ ] |
+| P1-U9 | etcd snapshot and restore drill | Restore tested, steps in runbook | `feat/p1-cluster-drills` | [ ] |
+| P1-U10 | Node drain, node failure and rejoin drills | Cluster recovers, steps in runbook | `feat/p1-cluster-drills` | [ ] |
+| P1-U11 | `make up`, `make down`, `make reset`, `make cluster` | Clean VMs to Ready cluster with one command | `feat/p1-cluster-automation` | [ ] |
 | P1-U12 | ADRs: CNI, load balancer, ingress, storage | 4 ADRs committed | `feat/p1-cluster-networking` | [ ] |
-| P1-U13 | Rebuild time measured | Documented, target under 40 minutes | `feat/p1-automation` | [ ] |
+| P1-U13 | Rebuild time measured | Documented, target under 40 minutes | `feat/p1-cluster-automation` | [ ] |
 | P1-U14 | Phase 2 spec | `docs/specs/P2-hardening.md` approved | `docs/p1-p2-spec` | [ ] |
 
 Branches: units are grouped into six feature branches (see `docs/specs/P1-cluster.md`).
