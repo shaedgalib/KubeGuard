@@ -110,6 +110,24 @@ One entry per finished unit: objective, rationale, deliverables, implementation,
 
 **Status.** Done. Branch `feat/p1-nodes`.
 
+### P1-U2: Ansible role `common`
+
+**Objective.** Prepare every node with the operating-system settings Kubernetes needs, in a way that can be repeated without side effects.
+
+**Rationale.** kubelet and kubeadm refuse to run, or run unreliably, without swap off, the container and bridge kernel modules, and the forwarding settings. A role with checks at its end turns "the node is ready" into something a command can prove.
+
+**Deliverables.**
+- `infra/ansible/`: `ansible.cfg`, the inventory generator `gen-inventory.sh` (inventory from `nodes.conf`), `site.yml`, `group_vars/all.yml`, `roles/common`, `test-idempotence.sh`, and `requirements.txt` (`ansible-core==2.21.5`).
+- `infra/versions.env`: the version-pin file, started with the Ansible version.
+- Makefile targets `ansible-setup`, `ansible-inventory`, `ansible-common`, `ansible-common-test`.
+- [docs/reports/P1-U2-common-evidence.md](../reports/P1-U2-common-evidence.md).
+
+**Implementation.** The role turns swap off and comments the swap line in `/etc/fstab`, loads `overlay` and `br_netfilter` now and on boot, sets `net.ipv4.ip_forward` and the two bridge-netfilter parameters, and writes the node names into `/etc/hosts`. It uses only modules built into Ansible, so no extra collections are needed. Its last tasks fail the run if a node is not in the intended state. Ansible runs from the project virtual environment `.venv`, which is not stored in git.
+
+**Verification.** The first run changes 5 settings per node; the second run reports `changed=0` and `failed=0` on all three nodes; a direct check on a rebooted node shows the settings are intact. One defect was found by the reboot test and fixed (cloud-init rewrote `/etc/hosts` on every boot).
+
+**Status.** Done. Branch `feat/p1-nodes`.
+
 ## Risks
 
 - **RAM and disk.** The host is shared and has limited free memory. Mitigation: start with minimal sizes (D1), short Prometheus retention, thin disks, and measure idle use before scaling.

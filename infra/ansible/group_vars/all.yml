@@ -1,0 +1,11 @@
+# Kernel modules Kubernetes needs: overlay is the container filesystem, br_netfilter lets
+# firewall rules see traffic that crosses a bridge.
+common_kernel_modules:
+  - overlay
+  - br_netfilter
+
+# Settings that kubeadm checks and that pod networking relies on.
+common_sysctl:
+  net.ipv4.ip_forward: "1"
+  net.bridge.bridge-nf-call-iptables: "1"
+  net.bridge.bridge-nf-call-ip6tables: "1"

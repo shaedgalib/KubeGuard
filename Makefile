@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help isolated-network-up isolated-network-down isolated-network-test internet-network-up internet-network-down template-vm-create template-vm-snapshot template-vm-restore-test template-vm-destroy vms vms-status vms-test vms-isolate vms-snapshot vms-restore vms-destroy
+.PHONY: help isolated-network-up isolated-network-down isolated-network-test internet-network-up internet-network-down template-vm-create template-vm-snapshot template-vm-restore-test template-vm-destroy vms vms-status vms-test vms-isolate vms-snapshot vms-restore vms-destroy ansible-setup ansible-inventory ansible-common ansible-common-test
 
 help: ## List targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-28s %s\n", $$1, $$2}'
@@ -62,3 +62,17 @@ vms-restore: ## Return every node VM to its clean snapshot (re-attaches the inte
 
 vms-destroy: ## Remove the node VMs, their disks and seeds
 	infra/libvirt/build-nodes.sh destroy
+
+# P1-U2: node preparation with Ansible (installed in the project virtual environment .venv)
+ansible-setup: ## Create .venv and install the pinned Ansible
+	python3 -m venv .venv
+	.venv/bin/pip install --quiet -r infra/ansible/requirements.txt
+
+ansible-inventory: ## Generate the Ansible inventory from infra/libvirt/nodes.conf
+	infra/ansible/gen-inventory.sh
+
+ansible-common: ansible-inventory ## Apply the common role to all nodes
+	cd infra/ansible && ../../.venv/bin/ansible-playbook site.yml
+
+ansible-common-test: ## Run the playbook twice; the second run must change nothing
+	infra/ansible/test-idempotence.sh

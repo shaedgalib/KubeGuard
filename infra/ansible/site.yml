@@ -1,0 +1,6 @@
+# Prepare every cluster node (P1-U2). Later units add plays for containerd, kubeadm and so on.
+- name: Prepare cluster nodes
+  hosts: cluster
+  become: true
+  roles:
+    - common

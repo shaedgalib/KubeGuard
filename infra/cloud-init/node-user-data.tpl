@@ -2,7 +2,8 @@
 # Template for cluster nodes (infra/libvirt/build-nodes.sh). @NAME@ and @SSH_PUBKEY@ are
 # replaced when the seed is built; the rendered file is not stored in git.
 hostname: @NAME@
-manage_etc_hosts: true
+# /etc/hosts is not managed by cloud-init: it would be rewritten on every boot and drop the
+# cluster block that the Ansible role writes.
 users:
   - name: ubuntu
     shell: /bin/bash
