@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # P1-U1: create, test, isolate, snapshot and destroy the cluster node VMs.
-# Usage: build-nodes.sh create | status | test | isolate | snapshot | restore | destroy
+# Usage: build-nodes.sh create | status | test | isolate | attach | snapshot | restore | destroy
 # Nodes are listed in nodes.conf. Names follow docs/naming.md.
 set -euo pipefail
 V="virsh -c qemu:///system"
@@ -135,6 +135,20 @@ isolate() {
   return $FAILED
 }
 
+attach() {  # give every node its internet interface back (build window)
+  FAILED=0
+  while read -r name role ip imac emac vcpus mem disk; do
+    if ssh_node "$ip" "ip -br link | grep -q internet0"; then echo "$name: internet0 already attached"; continue; fi
+    $V attach-interface "$name-vm" network "$INTERNET" --mac "$emac" --model virtio --live --config
+  done < <(rows)
+  sleep 10
+  while read -r name role ip imac emac vcpus mem disk; do
+    ssh_node "$ip" "ip -br link | grep -q internet0" && ok "$name: internet0 present" || bad "$name: internet0 missing"
+    ssh_node "$ip" "ping -c1 -W3 1.1.1.1" >/dev/null 2>&1 && ok "$name: internet reachable" || bad "$name: internet not reachable"
+  done < <(rows)
+  return $FAILED
+}
+
 snapshot() {
   while read -r name role ip imac emac vcpus mem disk; do $V shutdown "$name-vm" >/dev/null; done < <(rows)
   while read -r name role ip imac emac vcpus mem disk; do
@@ -164,7 +178,7 @@ destroy() {
 }
 
 case "${1:-}" in
-  create) create ;; status) status ;; test) test_nodes ;; isolate) isolate ;;
+  create) create ;; status) status ;; test) test_nodes ;; isolate) isolate ;; attach) attach ;;
   snapshot) snapshot ;; restore) restore ;; destroy) destroy ;;
-  *) echo "usage: $0 create|status|test|isolate|snapshot|restore|destroy"; exit 2 ;;
+  *) echo "usage: $0 create|status|test|isolate|attach|snapshot|restore|destroy"; exit 2 ;;
 esac

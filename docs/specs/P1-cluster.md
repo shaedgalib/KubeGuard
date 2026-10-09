@@ -155,7 +155,7 @@ One entry per finished unit: objective, rationale, deliverables, implementation,
 - Roles `kubernetes_packages`, `kubeadm_init` and `kubeadm_join`, and three more plays in `infra/ansible/site.yml` (control plane, join, cluster check).
 - Pins and addressing in `infra/ansible/group_vars/all.yml`: Kubernetes 1.37.1, the repository key fingerprint, pod and service CIDRs.
 - Makefile target `kubectl` (project kubeconfig only).
-- [docs/reports/P1-U4-kubeadm-evidence.md](../reports/P1-U4-kubeadm-evidence.md) and the runbook [docs/runbooks/cluster-access.md](../runbooks/cluster-access.md) (how to inspect the cluster, rebuild it, and the rules for the project kubeconfig).
+- [docs/reports/P1-U4-kubeadm-evidence.md](../reports/P1-U4-kubeadm-evidence.md) and the runbook [docs/runbooks/lab-operations.md](../runbooks/lab-operations.md) (how to operate every layer of the lab, inspect and rebuild the cluster, and the rules for the project kubeconfig).
 
 **Implementation.** `kubelet` and `kubeadm` (and `kubectl` on the control node) are installed at the pinned version from the official apt repository after the signing key is checked against a pinned fingerprint, then held. Each kubelet starts with `--node-ip` set to the node's isolated address, so the cluster never uses the temporary internet interface. `kubeadm init` runs from a configuration file (API `v1beta4`) only when `admin.conf` does not exist; workers join with a short-lived token created on the control node only when `kubelet.conf` does not exist, and the token is not logged. The admin kubeconfig is fetched to `~/.kube/kubeguard.kubeconfig` (mode 0600, outside the repository). `kube-proxy` is skipped because Cilium replaces it.
 
