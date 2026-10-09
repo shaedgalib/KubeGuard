@@ -28,7 +28,7 @@ Out of scope: Kubernetes install (P1), any attack work.
 | P0-U5 | Isolated libvirt network | VMs reach each other, cannot reach home LAN (tested) | [x] |
 | P0-U6 | Ubuntu 24.04 cloud image, base template, snapshot | Boots, snapshot restores | [x] |
 | P0-U7 | Literature matrix | 15+ entries | [x] |
-| P0-U8 | RQ v0 and gap analysis | `docs/specs/research-questions.md` | [~] |
+| P0-U8 | RQ v0 and gap analysis | `docs/specs/research-questions.md` | [x] |
 | P0-U9 | P1 spec | `docs/specs/P1-cluster.md` approved | [ ] |
 | P0-U10 | AWS cert and CKS decision | Short ADR | [ ] |
 
@@ -162,6 +162,22 @@ Each entry records the objective, rationale, deliverables, implementation, verif
 
 **Status.** Done. Branch `docs/p0-updates`. Open items for later phases: answers in the gap checklist are provisional and feed P0-U8 and G0.
 
+### P0-U8: Research questions v0 and gap analysis
+
+**Objective.** State the research questions in testable form and the gap that justifies them, with the evidence from the literature.
+
+**Rationale.** Gate G0 requires a written decision on whether the gap is real before the cluster is built. The questions also fix what the later phases must measure.
+
+**Deliverables.**
+- [docs/specs/research-questions.md](research-questions.md): problem statement, RQ1 to RQ3 with outcome measures and sub-questions, gap analysis G1 to G6 with matrix IDs and strength ratings, threats to the analysis, scope and non-goals, G0 proposal.
+- [ADR-G0](../adr/ADR-G0-literature-gap.md): the gate decision.
+
+**Implementation.** The questions come from the programme plan and were sharpened with the literature results. The closest sources (L01, L03, L24, L30, L32) were read in full, and every gap statement cites matrix entries.
+
+**Verification.** The file exists and was approved by the researcher on 2026-10-09. The gate pass rule is met: G1 and G4 hold.
+
+**Status.** Done. Branch `docs/p0-updates`. G0 passed on 2026-10-09; G1 is to be re-checked when the L01 data files are available.
+
 ## Initial environment
 
 - The CPU reports hardware virtualization flags (`svm`), and the `kvm` and `kvm_amd` kernel modules are loaded.
@@ -187,4 +203,4 @@ Items found in the AI-DLC review of Phase 0. Each is a work item.
 
 1. Approval: this specification has status `draft` and has not been approved, although construction has started. Approval is required.
 2. P0-U5 and P0-U6 are done. Remaining for ADR-001: the build-time policy (`kg-build` detached before attack work) is documented, and `kg-base` still has its interface on `kg-build`.
-3. Unit details: P0-U5 and later units receive their detail entry when their acceptance check passes.
+3. Unit details: later units receive their detail entry when their acceptance check passes.

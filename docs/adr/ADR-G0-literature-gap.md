@@ -1,7 +1,8 @@
 # ADR-G0: Literature gap decision (gate G0)
 
 Date: 2026-10-09
-Status: proposed (decision belongs to the researcher; not accepted until approved)
+Status: accepted
+Accepted by / date: shaedgalib (researcher), 2026-10-09
 
 ## Context
 
@@ -33,13 +34,13 @@ Limits of the evidence: abstract-level reading for many sources; data files of L
 
 ## Decision
 
-Proposed: **Option 1**, with these conditions:
+Accepted: **Option 1**, with these conditions:
 - Treat G1 as the main contribution, and G4 as the second.
 - Keep G2, G3 and G5 as secondary claims with their current strength labels. State G3 narrowly: against packet capture and sidecars, since eBPF versus perf is covered by L32.
 - Drop the "bare-metal" claim everywhere.
 - Re-check G1 when the L01 data files are available (expected after about 11 October 2026) and before any paper submission, with a fresh search.
 
-The researcher accepts, amends or rejects this decision. Until then the status stays `proposed`.
+Accepted by the researcher on 2026-10-09. Gate G0 is passed.
 
 ## Consequences
 

@@ -1,7 +1,7 @@
 # Research questions v0 and gap analysis (P0-U8)
 
-Status: draft, pending approval
-Approved by / date:
+Status: approved
+Approved by / date: shaedgalib (researcher), 2026-10-09
 
 Sources: the programme plan ([docs/AIDLC_Master_Plan.md](../AIDLC_Master_Plan.md)) and the literature matrix ([docs/literature/matrix.md](../literature/matrix.md), IDs `L01` to `L36`). Evidence statements below come from the abstracts and the PDF pages recorded in the matrix column "Check level". "Not stated" means the pages read did not say, not that the work does not exist. This document contains no experimental results.
 
