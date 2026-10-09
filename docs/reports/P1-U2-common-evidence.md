@@ -14,7 +14,7 @@ kg-worker-2  : ok=11  changed=5  unreachable=0  failed=0  skipped=1
 
 Changes per node: swap off (and the swap line in `/etc/fstab` commented), kernel modules loaded and listed in `/etc/modules-load.d/kubernetes.conf`, `/etc/sysctl.d/99-kubernetes.conf` written and applied, the cluster block in `/etc/hosts`. The role ends with checks (swap empty, both modules loaded, three sysctl values equal to 1); they pass.
 
-## Idempotence (`make ansible-common-test`): acceptance check
+## Idempotence (`make ansible-test` (named `ansible-common-test` when this unit was done)): acceptance check
 
 ```
 second run:

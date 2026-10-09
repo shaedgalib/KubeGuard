@@ -119,12 +119,29 @@ One entry per finished unit: objective, rationale, deliverables, implementation,
 **Deliverables.**
 - `infra/ansible/`: `ansible.cfg`, the inventory generator `gen-inventory.sh` (inventory from `nodes.conf`), `site.yml`, `group_vars/all.yml`, `roles/common`, `test-idempotence.sh`, and `requirements.txt` (`ansible-core==2.21.5`).
 - `infra/versions.env`: the version-pin file, started with the Ansible version.
-- Makefile targets `ansible-setup`, `ansible-inventory`, `ansible-common`, `ansible-common-test`.
+- Makefile targets `ansible-setup`, `ansible-inventory`, `ansible-apply`, `ansible-test`.
 - [docs/reports/P1-U2-common-evidence.md](../reports/P1-U2-common-evidence.md).
 
 **Implementation.** The role turns swap off and comments the swap line in `/etc/fstab`, loads `overlay` and `br_netfilter` now and on boot, sets `net.ipv4.ip_forward` and the two bridge-netfilter parameters, and writes the node names into `/etc/hosts`. It uses only modules built into Ansible, so no extra collections are needed. Its last tasks fail the run if a node is not in the intended state. Ansible runs from the project virtual environment `.venv`, which is not stored in git.
 
 **Verification.** The first run changes 5 settings per node; the second run reports `changed=0` and `failed=0` on all three nodes; a direct check on a rebooted node shows the settings are intact. One defect was found by the reboot test and fixed (cloud-init rewrote `/etc/hosts` on every boot).
+
+**Status.** Done. Branch `feat/p1-nodes`.
+
+### P1-U3: Ansible role `containerd`
+
+**Objective.** Install and configure the container runtime on every node, from pinned and verified files.
+
+**Rationale.** kubelet talks to a container runtime through CRI. The runtime version must be supported by the Kubernetes version chosen for P1-U4, and pinned so rebuilds give the same result.
+
+**Deliverables.**
+- `infra/ansible/roles/containerd`: tasks, handlers and two templates (`config.toml.j2`, `containerd.service.j2`).
+- Pins and SHA256 hashes in `infra/ansible/group_vars/all.yml`; versions recorded in `infra/versions.env`.
+- [docs/reports/P1-U3-containerd-evidence.md](../reports/P1-U3-containerd-evidence.md).
+
+**Implementation.** containerd 2.3.6 (the LTS line, supported until April 2028), runc 1.5.2 and `crictl` 1.37.0 are downloaded from the project release pages and checked against pinned hashes. The role writes a minimal containerd configuration (config version 4, systemd cgroup driver), a systemd unit from a template, and `/etc/crictl.yaml`. It creates `/opt/cni/bin` and `/etc/cni/net.d` but installs no CNI plugin, because Cilium provides pod networking in P1-U5. Ubuntu's own `containerd` package was not used: it is version 2.2.1, which Kubernetes 1.37 does not support and which reaches end of life on 2026-11-06. The role ends with checks (versions, cgroup driver, `crictl info` RuntimeReady).
+
+**Verification.** `crictl info` reports RuntimeReady on all three nodes; the second Ansible run reports `changed=0`; a pulled image can be removed and pulled again; containerd is active after a reboot. `NetworkReady` is false until Cilium is installed, as expected. Two defects were found and fixed (a `pipefail` check, an outdated config version).
 
 **Status.** Done. Branch `feat/p1-nodes`.
 
