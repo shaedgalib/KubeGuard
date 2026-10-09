@@ -29,7 +29,7 @@ Out of scope: Kubernetes install (P1), any attack work.
 | P0-U6 | Ubuntu 24.04 cloud image, base template, snapshot | Boots, snapshot restores | [x] |
 | P0-U7 | Literature matrix | 15+ entries | [x] |
 | P0-U8 | RQ v0 and gap analysis | `docs/specs/research-questions.md` | [x] |
-| P0-U9 | P1 spec | `docs/specs/P1-cluster.md` approved | [ ] |
+| P0-U9 | P1 spec | `docs/specs/P1-cluster.md` approved | [x] |
 
 ## Unit details
 
@@ -177,6 +177,21 @@ Each entry records the objective, rationale, deliverables, implementation, verif
 
 **Status.** Done. Branch `docs/p0-updates`. G0 passed on 2026-10-09; G1 is to be re-checked when the L01 data files are available.
 
+### P0-U9: Phase 1 specification
+
+**Objective.** Specify Phase 1 (the cluster) before any build work starts, so that its scope, units, decisions and risks are approved in advance.
+
+**Rationale.** AI-DLC requires an approved specification before construction. Phase 1 depends on the P0 lab (isolated network, base image) and on the P0-U8 decisions, so the specification is written once those exist.
+
+**Deliverables.**
+- [docs/specs/P1-cluster.md](P1-cluster.md): objective, scope, nine design decisions (D1 to D9), the 14 units with acceptance checks, a unit plan with dependencies and division of work, risks, the gate statement, and an amendments log.
+
+**Implementation.** The units and acceptance checks come from the master plan. The design decisions were added to fix choices that affect several units: node sizing (started small), node addresses, cluster CIDRs outside the lab and host ranges, the MetalLB pool, build-time internet through `kg-build` (ADR-001), image supply, ingress, version pinning and the Ansible inventory.
+
+**Verification.** The specification was approved on 2026-10-09, with D1 to D9 accepted as the working plan for Phase 1. Changes found necessary during the build are recorded in its Amendments section.
+
+**Status.** Done. Branch `feat/p0-u9-p1-spec`.
+
 ## Initial environment
 
 - The CPU reports hardware virtualization flags (`svm`), and the `kvm` and `kvm_amd` kernel modules are loaded.
@@ -193,7 +208,33 @@ G0: gap is real and RQs are final. Record in `docs/adr/ADR-G0-literature-gap.md`
 
 ## Retrospective
 
-(Filled at phase exit.)
+Phase result: Phase 0 is complete. Units U1 to U9 are done and gate G0 passed on 2026-10-09 ([ADR-G0](../adr/ADR-G0-literature-gap.md), accepted). Tag `p0-done`.
+
+**What worked**
+- The base image and its snapshot: the restore test and the isolation checks on two clones both passed, with evidence saved under `docs/reports/`.
+- One feature branch per unit with `--no-ff` merges kept the history readable and each unit revertable.
+- Checking literature entries against Crossref, DataCite and the arXiv API, and reading the closest sources in full, caught real errors (wrong author order for L32, a wrong year for L28, and a search result tied to the wrong paper for L25) and sharpened the gap analysis.
+- Recording decisions as ADRs (network isolation, the G0 gate) made later units simpler to specify.
+
+**What slipped or went wrong**
+- Construction started before the specification was approved. The gap was found in review and closed on 2026-10-09.
+- Early in the work the assistant pushed, merged and deleted branches without asking, and once merged `dev` into a feature branch. These were corrected, and the rules are now in CLAUDE.md.
+- The first cloned test VM got no network address, because its generated network configuration matched the base image's MAC address. Per-clone cloud-init seeds fixed it. A `pipefail` bug in the build script reported a healthy network as inactive; it was fixed the same day.
+- The first literature pass was abstract level and produced a wrong paper mapping. The gap analysis changed after full texts were read.
+
+**Scope changes**
+- The AWS certification and CKS decision unit (U10) was removed as out of project scope.
+- Zotero was not used. The matrix is kept in the repository and verified against official records.
+- The "bare-metal" claim was dropped because the lab runs in KVM virtual machines.
+- Node and VM sizes start minimal and grow only when a unit needs it.
+- The assistant may propose reference leads from web search, marked unverified, and check their metadata. This was added to CLAUDE.md.
+
+**Carried into Phase 1**
+- `kg-base` still has its interface on `kg-build`. Lab nodes must use `kg-lab` only, and `kg-build` is attached only during builds (ADR-001).
+- The test VMs `kg-t1` and `kg-t2` and the `kg-build` network still exist. Remove the VMs when no longer needed with `infra/libvirt/clone-test-vms.sh destroy`.
+- Re-check gap G1 when the L01 dataset files are available (expected after about 11 October 2026), and before any paper submission.
+- Pin component versions in P1-U2, and record node sizing in an ADR.
+- Zotero is installed under `~/opt/zotero-install` and is not used by the project.
 
 
 ## Review notes
