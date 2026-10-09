@@ -44,7 +44,7 @@ Accepted by the researcher on 2026-10-09. Gate G0 is passed.
 
 ## Consequences
 
-- If accepted, Phase 0 can close after P0-U9 (Phase 1 spec) and P0-U10, and the cluster build starts in Phase 1.
+- If accepted, Phase 0 can close after P0-U9 (Phase 1 spec), and the cluster build starts in Phase 1.
 - The dataset design in Phase 3 must include: three signal types (flow, runtime, audit), several attack classes, and labelled benign operational changes (rollouts, autoscaling, node maintenance). These are the properties that make G1 a gap.
 - The related-work section of Paper 1 must position the work against L01, L03, L24, L30 and L32, and state that the dataset is VM-based.
 - Risk: a source not found by this search could weaken G1. Mitigation: repeat the search before submission, and keep the false-positives-under-benign-changes angle as the fallback.

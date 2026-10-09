@@ -14,7 +14,7 @@ Metrics: 15+ papers in the literature matrix, and a written G0 decision.
 
 ## Scope
 
-In scope: repo skeleton, assistant context files, templates, KVM/libvirt, isolated network, base VM image, literature matrix, RQ v0, P1 spec, cert decision.
+In scope: repo skeleton, assistant context files, templates, KVM/libvirt, isolated network, base VM image, literature matrix, RQ v0, P1 spec.
 Out of scope: Kubernetes install (P1), any attack work.
 
 ## Units
@@ -30,7 +30,6 @@ Out of scope: Kubernetes install (P1), any attack work.
 | P0-U7 | Literature matrix | 15+ entries | [x] |
 | P0-U8 | RQ v0 and gap analysis | `docs/specs/research-questions.md` | [x] |
 | P0-U9 | P1 spec | `docs/specs/P1-cluster.md` approved | [ ] |
-| P0-U10 | AWS cert and CKS decision | Short ADR | [ ] |
 
 ## Unit details
 
@@ -201,6 +200,6 @@ G0: gap is real and RQs are final. Record in `docs/adr/ADR-G0-literature-gap.md`
 
 Items found in the AI-DLC review of Phase 0. Each is a work item.
 
-1. Approval: the specification was approved on 2026-10-09, after construction of U1 to U8 had started. The units added since then (U9, U10) follow the approved scope.
+1. Approval: the specification was approved on 2026-10-09, after construction of U1 to U8 had started. The units added since then (U9) follow the approved scope.
 2. P0-U5 and P0-U6 are done. Remaining for ADR-001: the build-time policy (`kg-build` detached before attack work) is documented, and `kg-base` still has its interface on `kg-build`.
 3. Unit details: later units receive their detail entry when their acceptance check passes.
