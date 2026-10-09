@@ -30,6 +30,7 @@ Research project: Kubernetes security lab, dataset, detection, eBPF, LLM triage.
 | docs/adr/ | Architecture decision records |
 | docs/reports/ | Benchmark and hardening reports |
 | docs/naming.md | Naming conventions for lab objects |
+| docs/runbooks/ | Step-by-step procedures (cluster access, etcd restore, node drills) |
 | docs/literature/ | Literature protocol, matrix and gap checklist (P0) |
 | docs/dataset-card.md | Dataset documentation (P3) |
 | infra/ | Ansible, libvirt/cloud-init definitions |
