@@ -14,7 +14,7 @@ Acceptance check for P0-U7: 15 or more entries in `matrix.md` with `Verified = y
 
 ## Rules
 
-1. Entries in `matrix.md` start as **leads**, found by web search by the assistant. The assistant may then read the source page and record what it states (`Checked`). This confirms that the entry exists and matches its metadata. It is abstract-level and not a review of the full text.
+1. Entries in `matrix.md` start as **leads**, found by web search by the assistant. The assistant may then read the source and record what it states (`Check level`: abstract page, or the PDF pages listed). This confirms that the entry exists and matches its metadata. It is not a review of the full text and does not replace the researcher's verification.
 2. The researcher opens every lead and records title, authors, venue, year and DOI or arXiv identifier in Zotero. Only then is `Verified` set to `yes` with the date.
 3. Theses, repositories, vendor blogs and documentation are marked in the `Type` column. They may inform the review but do not count towards the 15 papers unless the researcher decides otherwise.
 4. The assistant never writes claims about a paper's results into the matrix. The columns Data, Method, Attack coverage, Baselines and Limitations are filled by the researcher after reading.
@@ -24,7 +24,7 @@ Acceptance check for P0-U7: 15 or more entries in `matrix.md` with `Verified = y
 
 Kubernetes intrusion detection dataset; Kubernetes anomaly detection audit logs; eBPF container runtime security overhead; Falco Tetragon Tracee comparison; microservice anomaly detection benchmark dataset; container escape syscall dataset; Cilium Hubble flow anomaly detection; LLM SOC alert triage; LLM Kubernetes network policy generation; prompt injection through logs.
 
-Suggested next searches: Kubernetes attack matrix and OWASP Kubernetes Top 10; CNI flow datasets; benign change datasets (rollouts, autoscaling); eBPF flow-feature extraction for ML; graph models over service dependency graphs; LLM explanation of IDS alerts.
+Searches added on 2026-10-09: eBPF versus packet capture and sidecar overhead; concept drift and benign changes; LLM Kubernetes misconfiguration; lateral movement datasets; eBPF feature extraction for ML. Suggested next: graph models over service dependency graphs; LLM explanation of IDS alerts; Kubernetes audit-log datasets; Cilium and Hubble flow studies.
 
 ## Zotero convention
 

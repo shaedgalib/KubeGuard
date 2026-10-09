@@ -153,12 +153,12 @@ Each entry records the objective, rationale, deliverables, implementation, verif
 
 **Deliverables.**
 - [docs/literature/README.md](../literature/README.md): scope (three areas, five or more papers each), verification rules, search keywords, Zotero convention.
-- [docs/literature/matrix.md](../literature/matrix.md): matrix with 22 entries. 16 were checked against the source page by the assistant, 6 were not checkable, 0 are verified by the researcher.
+- [docs/literature/matrix.md](../literature/matrix.md): matrix with 35 entries. 28 were checked against the source by the assistant (abstract page, or the PDF for 7 of them), 7 were not checkable, 0 are verified by the researcher.
 - [docs/literature/gap-checklist.md](../literature/gap-checklist.md): eight questions answered during reading, feeding P0-U8 and G0.
 
 **Implementation.** Leads were collected by web search. The source pages were then read and the matrix records authors, venue, year, DOI and what the page states about data, method, attack coverage, baselines and limitations. The researcher verifies each entry in Zotero against the paper itself.
 
-**Verification.** At least 15 entries with `Verified = yes`. Currently 0 of 22 (16 checked by the assistant).
+**Verification.** At least 15 entries with `Verified = yes`. Currently 0 of 35 (28 checked by the assistant).
 
 **Status.** In progress. Branch `docs/p0-updates`. Remaining work: the researcher verifies the entries in Zotero and reads them; additional searches for the weaker areas (RQ2 overhead studies, mixed-signal datasets, Kubernetes-specific LLM work).
 
