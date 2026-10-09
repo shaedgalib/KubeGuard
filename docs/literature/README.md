@@ -15,7 +15,7 @@ Acceptance check for P0-U7: 15 or more entries in `matrix.md` with `Verified = y
 ## Rules
 
 1. Entries in `matrix.md` start as **leads**, found by web search by the assistant. The assistant may then read the source and record what it states (`Check level`: abstract page, or the PDF pages listed). This confirms that the entry exists and matches its metadata. It is not a review of the full text and does not replace the researcher's verification.
-2. The researcher opens every lead and records title, authors, venue, year and DOI or arXiv identifier in Zotero. Only then is `Verified` set to `yes` with the date.
+2. (Delegated on 2026-10-09.) The assistant compared entries with Crossref, DataCite, the arXiv API or the primary PDF and set `Verified` where the metadata match; see `docs/reports/P0-U7-verification.md`. For a paper that will be cited, the researcher opens it, stores it in Zotero and reads it. The researcher opens every lead and records title, authors, venue, year and DOI or arXiv identifier in Zotero. Only then is `Verified` set to `yes` with the date.
 3. Theses, repositories, vendor blogs and documentation are marked in the `Type` column. They may inform the review but do not count towards the 15 papers unless the researcher decides otherwise.
 4. The assistant never writes claims about a paper's results into the matrix. The columns Data, Method, Attack coverage, Baselines and Limitations are filled by the researcher after reading.
 5. References enter `paper/refs.bib` only after verification.
