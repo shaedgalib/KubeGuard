@@ -19,6 +19,7 @@ How to build, inspect, test, stop and rebuild each layer of the lab, bottom to t
 | Node VMs `kg-control-1-vm`, `kg-worker-1-vm`, `kg-worker-2-vm` | P1-U1 | `make vms-test` |
 | Node setup (Ansible: common, containerd, Kubernetes packages) | P1-U2, U3, U4 | `make ansible-test` |
 | Kubernetes cluster | P1-U4 | `make kubectl ARGS="get nodes -o wide"` |
+| Pod network and Hubble (Cilium) | P1-U5 | `make cilium-status` |
 
 Nodes:
 
@@ -195,6 +196,29 @@ make ansible-test                                              # PASS: Ansible a
 ```
 
 Installing `kubelet` and `kubeadm` by hand, if a node has no packages: add the `pkgs.k8s.io` v1.36 repository, check that the key fingerprint is `DE15B14486CD377B9E876E1A234654DA9A296436`, install `kubelet=1.36.5-1.1` and `kubeadm=1.36.5-1.1` (plus `kubectl=1.36.5-1.1` on the control node), hold them, set `KUBELET_EXTRA_ARGS=--node-ip=<node address>` in `/etc/default/kubelet`, and enable `kubelet`. The role `kubernetes_packages` is the exact reference.
+
+## 8. Pod network and Hubble (P1-U5)
+
+Cilium (chart 1.20.2, settings in `k8s/cilium/values.yaml`) is the pod network and replaces kube-proxy. Hubble shows the flows.
+
+```bash
+make cilium-install        # install or upgrade the pinned chart and wait until ready
+make cilium-status         # Cilium, Operator, Envoy and Hubble Relay should be OK, 3 of 3 agents
+make kubectl ARGS="get nodes"                       # Ready
+make kubectl ARGS="-n kube-system get pods -o wide" # cilium x3, cilium-envoy x3, operator, hubble-relay, hubble-ui, coredns
+make hubble-ui             # browser view of the flows (Ctrl+C to stop the port-forward)
+make cilium-uninstall      # remove Cilium; the nodes return to NotReady
+```
+
+Flows on the command line (stop the port-forward afterwards, for example with `kill %1`):
+
+```bash
+env -u KUBECONFIG cilium hubble port-forward --kubeconfig ~/.kube/kubeguard.kubeconfig &
+hubble observe --server localhost:4245 --namespace <namespace> --last 20
+hubble status --server localhost:4245          # Connected Nodes: 3/3
+```
+
+A quick test of Services without kube-proxy: create a pod and Service in a test namespace, then fetch it from a client pod that stays alive a few seconds (`sh -c 'wget -qO- -T 5 http://web'`); delete the namespace afterwards.
 
 ## Troubleshooting
 

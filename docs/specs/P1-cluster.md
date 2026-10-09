@@ -178,6 +178,22 @@ One entry per finished unit: objective, rationale, deliverables, implementation,
 
 **Status.** Done. Branch `feat/p1-nodes`.
 
+### P1-U5: Cilium and Hubble
+
+**Objective.** Give the cluster a pod network that also replaces kube-proxy, and make traffic visible.
+
+**Rationale.** Nodes stay `NotReady` until a CNI exists. Cilium implements pod networking and Services with eBPF, so it replaces kube-proxy, and Hubble shows which pod talks to which. Both are needed by the load balancer, ingress, monitoring and the detection work in later phases.
+
+**Deliverables.**
+- `k8s/cilium/values.yaml`, Makefile targets `cilium-install`, `cilium-status`, `cilium-uninstall`, `hubble-ui`, and the versions in `infra/versions.env`.
+- [docs/reports/P1-U5-cilium-evidence.md](../reports/P1-U5-cilium-evidence.md).
+
+**Implementation.** Helm 4.3.0 installs the pinned chart `cilium/cilium` 1.20.2 from the host with the project kubeconfig. Cilium runs with `kubeProxyReplacement: true` (told the real API address `10.77.0.10:6443`), uses the pod ranges kubeadm allocated (`ipam.mode: kubernetes`), attaches only to `isolated0`, tunnels between nodes with VXLAN, and runs Hubble relay and UI with a single operator. Kubernetes was moved to 1.36.5 before this unit because Cilium 1.20 lists Kubernetes 1.33 to 1.36 only (see the amendments).
+
+**Verification.** `cilium status` reports Cilium, the operator, Envoy and Hubble Relay `OK`; all three nodes are `Ready` and CoreDNS runs; a request from a client pod to a test Service succeeds with no kube-proxy in the cluster; Hubble shows the flows (DNS and TCP) with verdict `FORWARDED` from all three nodes.
+
+**Status.** Done. Branch `feat/p1-cluster-networking`.
+
 ## Risks
 
 - **RAM and disk.** The host is shared and has limited free memory. Mitigation: start with minimal sizes (D1), short Prometheus retention, thin disks, and measure idle use before scaling.
