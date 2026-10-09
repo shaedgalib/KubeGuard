@@ -26,7 +26,13 @@ fi
 if [ $# -eq 3 ]; then
   A=$1; B=$2; U=$3
   GW=$(ip route | awk '/^default/ {print $3; exit}')
-  SSH="ssh -o BatchMode=yes -o ConnectTimeout=5 -o StrictHostKeyChecking=accept-new $U@$A"
+  KEY=${KG_LAB_KEY:-$HOME/.ssh/kubeguard-lab.pub}
+  SSH="ssh -i ${KEY%.pub} -o IdentitiesOnly=yes -o BatchMode=yes -o ConnectTimeout=5 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR $U@$A"
+  if ! $SSH true >/dev/null 2>&1; then
+    bad "SSH to VM A ($A) fails, so the in-VM checks cannot run"
+    exit 1
+  fi
+  ok "SSH to VM A works"
   $SSH "ping -c2 -W2 $B" >/dev/null 2>&1 && ok "VM A reaches VM B" || bad "VM A cannot reach VM B"
   $SSH "ping -c2 -W2 $GW" >/dev/null 2>&1 && bad "VM A reaches the LAN gateway $GW" || ok "VM A cannot reach LAN gateway $GW"
   $SSH "ping -c2 -W2 1.1.1.1" >/dev/null 2>&1 && bad "VM A reaches the internet" || ok "VM A cannot reach the internet"
