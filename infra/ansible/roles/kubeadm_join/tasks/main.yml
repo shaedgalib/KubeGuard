@@ -1,0 +1,25 @@
+# Role kubeadm_join: join a worker to the cluster. Runs only when the node has no kubelet.conf
+# yet, so a second run changes nothing. The token is short-lived and not written to any log.
+
+- name: Check whether this node has joined already
+  ansible.builtin.stat:
+    path: /etc/kubernetes/kubelet.conf
+  register: kubeadm_join_state
+
+- name: Create a short-lived join command on the control node
+  ansible.builtin.command: kubeadm token create --ttl 15m --print-join-command
+  delegate_to: "{{ groups['control'][0] }}"
+  register: kubeadm_join_command
+  changed_when: false
+  no_log: true
+  when: not kubeadm_join_state.stat.exists
+
+- name: Join the cluster
+  ansible.builtin.command: >-
+    {{ kubeadm_join_command.stdout }}
+    --node-name {{ inventory_hostname }}
+    --cri-socket unix:///run/containerd/containerd.sock
+  args:
+    creates: /etc/kubernetes/kubelet.conf
+  no_log: true
+  when: not kubeadm_join_state.stat.exists

@@ -29,6 +29,8 @@ Research project: Kubernetes security lab, dataset, detection, eBPF, LLM triage.
 | docs/specs/ | One spec per phase |
 | docs/adr/ | Architecture decision records |
 | docs/reports/ | Benchmark and hardening reports |
+| docs/naming.md | Naming conventions for lab objects |
+| docs/runbooks/ | Step-by-step procedures: lab operations (networks, VMs, Ansible, cluster), later etcd restore and node drills |
 | docs/literature/ | Literature protocol, matrix and gap checklist (P0) |
 | docs/dataset-card.md | Dataset documentation (P3) |
 | infra/ | Ansible, libvirt/cloud-init definitions |
@@ -41,7 +43,7 @@ Research project: Kubernetes security lab, dataset, detection, eBPF, LLM triage.
 
 ## Commands
 
-`make help` lists targets. Available: `net-up`, `net-down`, `net-test` (isolated lab network, P0). More are added as phases land (`up`, `down`, `reset`, `cluster` in P1).
+`make help` lists targets. Available: `isolated-network-*`, `internet-network-*` and `template-vm-*` (lab network and template VM, P0). More are added as phases land (`up`, `down`, `reset`, `cluster` in P1). Names of lab objects follow [docs/naming.md](docs/naming.md).
 
 ## Git workflow
 

@@ -1,0 +1,49 @@
+# Role kubeadm_init: create the control plane. Runs only when the node has no admin.conf yet,
+# so a second run changes nothing.
+
+- name: Create the kubeadm configuration directory
+  ansible.builtin.file:
+    path: /etc/kubeadm
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Write the kubeadm configuration
+  ansible.builtin.template:
+    src: kubeadm-config.yaml.j2
+    dest: /etc/kubeadm/kubeadm-config.yaml
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Initialise the control plane
+  ansible.builtin.command: kubeadm init --config /etc/kubeadm/kubeadm-config.yaml
+  args:
+    creates: /etc/kubernetes/admin.conf
+
+- name: Wait until the API server is ready
+  ansible.builtin.uri:
+    url: "https://{{ ansible_host }}:6443/readyz"
+    validate_certs: false
+    status_code: 200
+  register: kubeadm_init_ready
+  until: kubeadm_init_ready.status == 200
+  retries: 30
+  delay: 5
+  changed_when: false
+
+# The project's own kubeconfig lives outside the repository and is the only one used for this
+# cluster. Mode 0600: it gives full administrator access.
+- name: Fetch the admin kubeconfig to the project kubeconfig on the host
+  ansible.builtin.fetch:
+    src: /etc/kubernetes/admin.conf
+    dest: "{{ lookup('env', 'HOME') }}/.kube/kubeguard.kubeconfig"
+    flat: true
+
+- name: Restrict the project kubeconfig to its owner
+  ansible.builtin.file:
+    path: "{{ lookup('env', 'HOME') }}/.kube/kubeguard.kubeconfig"
+    mode: "0600"
+  become: false
+  delegate_to: localhost
