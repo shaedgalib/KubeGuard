@@ -15,6 +15,13 @@ ethernets:
     dhcp4-overrides:
       route-metric: 200
       use-dns: false
+    # The isolated network's DHCP gives no gateway. A default route via the host bridge
+    # (which does not forward) keeps a default route after internet0 is detached; kubeadm
+    # needs one to pick the node address.
+    routes:
+      - to: default
+        via: 10.77.0.1
+        metric: 200
   internet0:
     match:
       macaddress: "@INTERNET_MAC@"

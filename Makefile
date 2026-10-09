@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help isolated-network-up isolated-network-down isolated-network-test internet-network-up internet-network-down template-vm-create template-vm-snapshot template-vm-restore-test template-vm-destroy vms vms-status vms-test vms-isolate vms-snapshot vms-destroy
+.PHONY: help isolated-network-up isolated-network-down isolated-network-test internet-network-up internet-network-down template-vm-create template-vm-snapshot template-vm-restore-test template-vm-destroy vms vms-status vms-test vms-isolate vms-snapshot vms-restore vms-destroy
 
 help: ## List targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-28s %s\n", $$1, $$2}'
@@ -56,6 +56,9 @@ vms-isolate: ## Detach the internet interface and run the isolation checks
 
 vms-snapshot: ## Snapshot each node VM as <name>-clean-snapshot
 	infra/libvirt/build-nodes.sh snapshot
+
+vms-restore: ## Return every node VM to its clean snapshot (re-attaches the internet interface)
+	infra/libvirt/build-nodes.sh restore
 
 vms-destroy: ## Remove the node VMs, their disks and seeds
 	infra/libvirt/build-nodes.sh destroy

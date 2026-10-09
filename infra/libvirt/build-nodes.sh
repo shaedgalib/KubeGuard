@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # P1-U1: create, test, isolate, snapshot and destroy the cluster node VMs.
-# Usage: build-nodes.sh create | status | test | isolate | snapshot | destroy
+# Usage: build-nodes.sh create | status | test | isolate | snapshot | restore | destroy
 # Nodes are listed in nodes.conf. Names follow docs/naming.md.
 set -euo pipefail
 V="virsh -c qemu:///system"
@@ -16,7 +16,7 @@ CONF=${NODES_CONF:-$HERE/nodes.conf}
 rows() { grep -v '^[[:space:]]*#' "$CONF" | grep -v '^[[:space:]]*$'; }
 
 ssh_node() {
-  ssh -i "${KEY%.pub}" -o IdentitiesOnly=yes -o BatchMode=yes -o ConnectTimeout=5 \
+  ssh -n -i "${KEY%.pub}" -o IdentitiesOnly=yes -o BatchMode=yes -o ConnectTimeout=5 \
       -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR \
       ubuntu@"$1" "${@:2}"
 }
@@ -124,9 +124,15 @@ isolate() {
     $V detach-interface "$name-vm" network --mac "$emac" --live --config
   done < <(rows)
   sleep 5
+  FAILED=0
+  while read -r name role ip imac emac vcpus mem disk; do
+    ssh_node "$ip" "ip route show default | grep -q isolated0" && ok "$name: default route on isolated0 after isolation" || bad "$name: no default route on isolated0 after isolation"
+    ssh_node "$ip" "ip -br link | grep -q internet0" && bad "$name: internet0 still present" || ok "$name: internet0 detached"
+  done < <(rows)
   local a b
   a=$(rows | sed -n 1p | awk '{print $3}'); b=$(rows | sed -n 2p | awk '{print $3}')
-  KG_LAB_KEY="$KEY" "$HERE/test-isolation.sh" "$a" "$b" ubuntu
+  KG_LAB_KEY="$KEY" "$HERE/test-isolation.sh" "$a" "$b" ubuntu || FAILED=1
+  return $FAILED
 }
 
 snapshot() {
@@ -137,6 +143,15 @@ snapshot() {
   done < <(rows)
   while read -r name role ip imac emac vcpus mem disk; do $V start "$name-vm" >/dev/null; done < <(rows)
   while read -r name role ip imac emac vcpus mem disk; do wait_ssh "$ip" 300 && echo "back up: $name" || echo "NOT reachable: $name"; done < <(rows)
+}
+
+restore() {  # return every node to its <name>-clean-snapshot (also re-attaches internet0)
+  while read -r name role ip imac emac vcpus mem disk; do
+    $V destroy "$name-vm" 2>/dev/null || true
+    $V snapshot-revert "$name-vm" "$name-clean-snapshot"
+    $V start "$name-vm" >/dev/null
+  done < <(rows)
+  while read -r name role ip imac emac vcpus mem disk; do wait_ssh "$ip" 300 && echo "restored: $name" || echo "NOT reachable: $name"; done < <(rows)
 }
 
 destroy() {
@@ -150,6 +165,6 @@ destroy() {
 
 case "${1:-}" in
   create) create ;; status) status ;; test) test_nodes ;; isolate) isolate ;;
-  snapshot) snapshot ;; destroy) destroy ;;
-  *) echo "usage: $0 create|status|test|isolate|snapshot|destroy"; exit 2 ;;
+  snapshot) snapshot ;; restore) restore ;; destroy) destroy ;;
+  *) echo "usage: $0 create|status|test|isolate|snapshot|restore|destroy"; exit 2 ;;
 esac
