@@ -134,10 +134,10 @@ Each phase lists its units in dependency order. Unit IDs are stable references f
 
 | Unit | Description | Acceptance check | Branch | Status |
 |---|---|---|---|---|
-| P1-U1 | Three VMs from cloud-init (infra definitions) | `make vms` creates 3 reachable VMs | `feat/p1-nodes` | [ ] |
-| P1-U2 | Ansible role `common` (swap off, kernel modules, sysctl) | Idempotent re-run reports no changes | `feat/p1-nodes` | [ ] |
-| P1-U3 | Ansible role `containerd` | `crictl info` OK on all nodes | `feat/p1-nodes` | [ ] |
-| P1-U4 | Ansible roles kubeadm init and join | 3 nodes join, API reachable | `feat/p1-nodes` | [ ] |
+| P1-U1 | Three VMs from cloud-init (infra definitions) | `make vms` creates 3 reachable VMs | `feat/p1-nodes` | [x] |
+| P1-U2 | Ansible role `common` (swap off, kernel modules, sysctl) | Idempotent re-run reports no changes | `feat/p1-nodes` | [x] |
+| P1-U3 | Ansible role `containerd` | `crictl info` OK on all nodes | `feat/p1-nodes` | [x] |
+| P1-U4 | Ansible roles kubeadm init and join | 3 nodes join, API reachable | `feat/p1-nodes` | [x] |
 | P1-U5 | Cilium with kube-proxy replacement, Hubble relay and UI | `cilium status` healthy, flows visible | `feat/p1-networking` | [ ] |
 | P1-U6 | MetalLB (L2 pool), ingress or Gateway API, local-path storage | LoadBalancer IP assigned, PVC binds | `feat/p1-networking` | [ ] |
 | P1-U7 | kube-prometheus-stack with short retention | Grafana dashboards load, RAM within budget | `feat/p1-apps-monitoring` | [ ] |
