@@ -87,6 +87,29 @@ Dependencies, deliverables and division of work. Core cluster setup is written b
 
 Work order: U1 to U4, then U5, U6 and U8 together, then U7, U9 and U10, then U11, U12 and U13, then U14. Each unit ends at its acceptance check, with evidence under `docs/reports/` and a unit-details entry in this spec.
 
+## Unit details
+
+One entry per finished unit: objective, rationale, deliverables, implementation, verification and status. The status column of the unit table is ticked when the branch is merged.
+
+### P1-U1: Cluster node VMs
+
+**Objective.** Create the three cluster nodes as virtual machines that can be rebuilt from the repository.
+
+**Rationale.** Every later unit (node preparation, containerd, kubeadm, Cilium) runs on these nodes. Fixed names and addresses, a known size and a clean restore point make those units repeatable.
+
+**Deliverables.**
+- `infra/libvirt/nodes.conf`: the node list (name, role, address, MACs, vCPUs, memory, disk).
+- `infra/libvirt/build-nodes.sh`: `create`, `status`, `test`, `isolate`, `snapshot`, `restore`, `destroy`, with Makefile targets `vms`, `vms-status`, `vms-test`, `vms-isolate`, `vms-snapshot`, `vms-restore`, `vms-destroy`.
+- `infra/cloud-init/node-user-data.tpl` and `node-network-config.tpl`.
+- DHCP reservations for the three nodes in `infra/libvirt/kg-isolated-network.xml`.
+- [docs/reports/P1-U1-vms-evidence.md](../reports/P1-U1-vms-evidence.md) and [docs/naming.md](../naming.md).
+
+**Implementation.** Each node disk is a copy of `kg-template-disk.qcow2` grown to 20 GiB. Each node gets its own cloud-init seed with its hostname, the lab key, a new machine-id and a two-interface network configuration: `isolated0` (permanent, fixed address through a DHCP reservation) and `internet0` (build window only, lower route metric). Sizing starts minimal (decision D1): 2 vCPU and 2 GiB per node.
+
+**Verification.** `make vms` creates three nodes reachable over SSH; `make vms-test` passes 21 checks (hostname, vCPUs, memory, disk size, kernel BTF, unique machine-ids, node-to-node reachability); `make vms-isolate` shows the nodes cannot reach the LAN gateway or the internet once `internet0` is detached; `make vms-restore` returns them to their clean snapshots. The masquerade check of the isolation script needs a one-time run with `sudo` from a terminal.
+
+**Status.** Done. Branch `feat/p1-nodes`.
+
 ## Risks
 
 - **RAM and disk.** The host is shared and has limited free memory. Mitigation: start with minimal sizes (D1), short Prometheus retention, thin disks, and measure idle use before scaling.
