@@ -1,5 +1,13 @@
 .DEFAULT_GOAL := help
-.PHONY: help isolated-network-up isolated-network-down isolated-network-test internet-network-up internet-network-down template-vm-create template-vm-snapshot template-vm-restore-test template-vm-destroy vms vms-status vms-test vms-isolate vms-attach-internet vms-snapshot vms-restore vms-destroy ansible-setup ansible-inventory ansible-apply ansible-test kubectl
+
+# The project's own kubeconfig. Every cluster command uses it explicitly, never another one.
+PROJECT_KUBECONFIG := $(HOME)/.kube/kubeguard.kubeconfig
+# Pinned versions (one place: infra/versions.env). Values are stripped of trailing spaces.
+-include infra/versions.env
+CILIUM_VERSION := $(strip $(CILIUM))
+GATEWAY_API_VERSION := $(strip $(GATEWAY_API))
+LOCAL_PATH_VERSION := $(strip $(LOCAL_PATH))
+.PHONY: help isolated-network-up isolated-network-down isolated-network-test internet-network-up internet-network-down template-vm-create template-vm-snapshot template-vm-restore-test template-vm-destroy vms vms-status vms-test vms-isolate vms-attach-internet vms-snapshot vms-restore vms-destroy ansible-setup ansible-inventory ansible-apply ansible-test kubectl cilium-install cilium-status cilium-uninstall hubble-ui gateway-api-crds cilium-restart cilium-lb storage-install net-test-u6
 
 help: ## List targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-28s %s\n", $$1, $$2}'
@@ -22,7 +30,7 @@ isolated-network-test: ## Run the isolation checks (static; pass VM args via ARG
 
 # P0-U6: template VM. kg-internet-access-network gives internet during builds only (ADR-001)
 internet-network-up: ## Define and start kg-internet-access-network (build time only)
-	virsh -c qemu:///system net-define infra/libvirt/kg-internet-access-network.xml
+	-virsh -c qemu:///system net-define infra/libvirt/kg-internet-access-network.xml
 	virsh -c qemu:///system net-start kg-internet-access-network
 
 internet-network-down: ## Stop and remove kg-internet-access-network
@@ -82,4 +90,42 @@ ansible-test: ## Run the playbook twice; the second run must change nothing
 
 # P1-U4: talk to the cluster with the project's own kubeconfig only (never another one)
 kubectl: ## Run kubectl against the KubeGuard cluster, for example: make kubectl ARGS="get nodes"
-	env -u KUBECONFIG kubectl --kubeconfig $(HOME)/.kube/kubeguard.kubeconfig $(ARGS)
+	env -u KUBECONFIG kubectl --kubeconfig $(PROJECT_KUBECONFIG) $(ARGS)
+
+# P1-U5: pod network (Cilium) and Hubble. Chart pinned in infra/versions.env, settings in k8s/cilium/values.yaml
+cilium-install: ## Install or upgrade Cilium (pinned chart) and wait until it is ready
+	env -u KUBECONFIG helm --kubeconfig $(PROJECT_KUBECONFIG) upgrade --install cilium cilium/cilium --version $(CILIUM_VERSION) --namespace kube-system --values k8s/cilium/values.yaml --wait --timeout 10m
+
+cilium-status: ## Show the Cilium status (waits for readiness)
+	env -u KUBECONFIG cilium status --kubeconfig $(PROJECT_KUBECONFIG) --wait
+
+cilium-uninstall: ## Remove Cilium (the nodes go back to NotReady)
+	env -u KUBECONFIG helm --kubeconfig $(PROJECT_KUBECONFIG) uninstall cilium --namespace kube-system
+
+hubble-ui: ## Open the Hubble UI through a local port-forward (Ctrl+C to stop)
+	env -u KUBECONFIG cilium hubble ui --kubeconfig $(PROJECT_KUBECONFIG)
+
+# P1-U6: load balancer (Cilium LB IPAM + L2), Gateway API and storage. Order: crds, cilium-install, cilium-lb, storage.
+# Image pulls need the internet: run "make vms-attach-internet" first, and isolate again afterwards.
+KUBECTL_P := env -u KUBECONFIG kubectl --kubeconfig $(PROJECT_KUBECONFIG)
+gateway-api-crds: ## Install the Gateway API CRDs (standard channel, pinned)
+	$(KUBECTL_P) apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v$(GATEWAY_API_VERSION)/standard-install.yaml
+
+cilium-restart: ## Restart the operator and agents so they read a changed ConfigMap (Helm does not do this)
+	$(KUBECTL_P) -n kube-system rollout restart deployment/cilium-operator daemonset/cilium daemonset/cilium-envoy
+	$(KUBECTL_P) -n kube-system rollout status deployment/cilium-operator --timeout=300s
+	$(KUBECTL_P) -n kube-system rollout status daemonset/cilium --timeout=300s
+	$(KUBECTL_P) -n kube-system rollout status daemonset/cilium-envoy --timeout=300s
+
+cilium-lb: ## Apply the LoadBalancer address pool and the L2 announcement policy
+	$(KUBECTL_P) apply -f k8s/cilium/lb-pool.yaml -f k8s/cilium/l2-policy.yaml
+
+storage-install: ## Install local-path-provisioner (pinned) and make it the default StorageClass
+	$(KUBECTL_P) apply -f https://raw.githubusercontent.com/rancher/local-path-provisioner/v$(LOCAL_PATH_VERSION)/deploy/local-path-storage.yaml
+	$(KUBECTL_P) patch storageclass local-path -p '{"metadata":{"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}'
+
+net-test-u6: ## P1-U6 acceptance: LoadBalancer address, Gateway route, PVC bind
+	$(KUBECTL_P) apply -f k8s/tests/lb-test.yaml -f k8s/tests/gateway-test.yaml -f k8s/tests/pvc-test.yaml
+	$(KUBECTL_P) rollout status deployment/lb-test --timeout=120s
+	$(KUBECTL_P) wait --for=condition=Ready pod/pvc-test --timeout=120s
+	$(KUBECTL_P) get svc,gateway,httproute,pvc

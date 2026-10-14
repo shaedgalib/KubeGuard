@@ -1,5 +1,6 @@
 # P1-U4 evidence: kubeadm init and join
 
+> Note: This report describes the first build on Kubernetes 1.37.1. On 2026-10-10 the cluster was rebuilt on Kubernetes 1.36.5 because Cilium 1.20 lists Kubernetes 1.33 to 1.36 only (see the P1 spec amendments); the procedure and checks are unchanged.
 Date: 2026-10-09 to 2026-10-10. Branch: `feat/p1-nodes`.
 
 Design (approved by the researcher before the run): Kubernetes 1.37.1 from the official apt repository `pkgs.k8s.io` (packages `kubelet`, `kubeadm`, `kubectl` at 1.37.1-1.1, held), signing key checked against the pinned fingerprint `DE15 B144 86CD 377B 9E87 6E1A 2346 54DA 9A29 6436` (the key expires 2026-12-29). API at `10.77.0.10:6443`, each kubelet started with `--node-ip` set to the node's isolated address, pod CIDR `10.244.0.0/16`, service CIDR `10.96.0.0/16`, `addon/kube-proxy` skipped (Cilium replaces it in P1-U5), cgroup driver `systemd`. The pause image kubeadm expects (`registry.k8s.io/pause:3.10.2`) equals containerd's default, so nothing needed aligning.

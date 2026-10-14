@@ -19,6 +19,7 @@ How to build, inspect, test, stop and rebuild each layer of the lab, bottom to t
 | Node VMs `kg-control-1-vm`, `kg-worker-1-vm`, `kg-worker-2-vm` | P1-U1 | `make vms-test` |
 | Node setup (Ansible: common, containerd, Kubernetes packages) | P1-U2, U3, U4 | `make ansible-test` |
 | Kubernetes cluster | P1-U4 | `make kubectl ARGS="get nodes -o wide"` |
+| Pod network and Hubble (Cilium) | P1-U5 | `make cilium-status` |
 
 Nodes:
 
@@ -104,7 +105,7 @@ for v in kg-worker-2-vm kg-worker-1-vm kg-control-1-vm; do virsh -c qemu:///syst
 for v in kg-control-1-vm kg-worker-1-vm kg-worker-2-vm; do virsh -c qemu:///system start $v; done
 ```
 
-The nodes are not set to start with the host. Start them again after a host reboot. The cluster comes back by itself once the nodes are up.
+The nodes are not set to start with the host. Start them again after a host reboot. The cluster comes back by itself once the nodes are up. While `internet0` is still attached, run `make internet-network-up` first: that network is not autostarted, and libvirt refuses to start a VM whose network is inactive.
 
 ## 5. Node setup with Ansible (P1-U2, U3, U4)
 
@@ -121,8 +122,8 @@ make ansible-test                    # runs the playbook twice; the second run m
 | Role | What it does |
 |---|---|
 | `common` | swap off, kernel modules `overlay` and `br_netfilter`, sysctl settings, node names in `/etc/hosts` |
-| `containerd` | containerd 2.3.6, runc 1.5.2 and `crictl` 1.37.0 from the project release pages, checked against pinned SHA256 hashes; systemd cgroup driver |
-| `kubernetes_packages` | `kubelet` and `kubeadm` (and `kubectl` on the control node) 1.37.1, held; `--node-ip` set per node |
+| `containerd` | containerd 2.3.6, runc 1.5.2 and `crictl` 1.36.0 from the project release pages, checked against pinned SHA256 hashes; systemd cgroup driver |
+| `kubernetes_packages` | `kubelet` and `kubeadm` (and `kubectl` on the control node) 1.36.5, held; `--node-ip` set per node |
 | `kubeadm_init` | `kubeadm init` on the control node, then the project kubeconfig is fetched to the host |
 | `kubeadm_join` | joins each worker with a short-lived token that is not logged |
 
@@ -148,12 +149,12 @@ Inspect the running cluster (read-only; checked by the researcher on 2026-10-10)
 
 ```bash
 curl -sk https://10.77.0.10:6443/readyz; echo                # ok
-make kubectl ARGS="version"                                   # Server Version: v1.37.1
+make kubectl ARGS="version"                                   # Server Version: v1.36.5
 make kubectl ARGS="get nodes -o wide"                         # 3 nodes, INTERNAL-IP 10.77.0.10 / .11 / .12
 make kubectl ARGS="-n kube-system get pods"                   # etcd, apiserver, controller-manager, scheduler Running
 make kubectl ARGS="-n kube-system get daemonset kube-proxy"   # NotFound: Cilium replaces kube-proxy
 node 10.77.0.10 'cat /etc/kubeadm/kubeadm-config.yaml'        # the configuration kubeadm used
-node 10.77.0.10 'kubeadm version -o short; apt-mark showhold' # v1.37.1; kubeadm, kubectl, kubelet held
+node 10.77.0.10 'kubeadm version -o short; apt-mark showhold' # v1.36.5; kubeadm, kubectl, kubelet held
 node 10.77.0.11 'cat /etc/default/kubelet'                    # KUBELET_EXTRA_ARGS=--node-ip=10.77.0.11
 ```
 
@@ -194,7 +195,59 @@ make kubectl ARGS="get nodes -o wide"                         # three nodes, all
 make ansible-test                                              # PASS: Ansible agrees with the manual result
 ```
 
-Installing `kubelet` and `kubeadm` by hand, if a node has no packages: add the `pkgs.k8s.io` v1.37 repository, check that the key fingerprint is `DE15B14486CD377B9E876E1A234654DA9A296436`, install `kubelet=1.37.1-1.1` and `kubeadm=1.37.1-1.1` (plus `kubectl=1.37.1-1.1` on the control node), hold them, set `KUBELET_EXTRA_ARGS=--node-ip=<node address>` in `/etc/default/kubelet`, and enable `kubelet`. The role `kubernetes_packages` is the exact reference.
+Installing `kubelet` and `kubeadm` by hand, if a node has no packages: add the `pkgs.k8s.io` v1.36 repository, check that the key fingerprint is `DE15B14486CD377B9E876E1A234654DA9A296436`, install `kubelet=1.36.5-1.1` and `kubeadm=1.36.5-1.1` (plus `kubectl=1.36.5-1.1` on the control node), hold them, set `KUBELET_EXTRA_ARGS=--node-ip=<node address>` in `/etc/default/kubelet`, and enable `kubelet`. The role `kubernetes_packages` is the exact reference.
+
+## 8. Pod network and Hubble (P1-U5)
+
+Cilium (chart 1.20.2, settings in `k8s/cilium/values.yaml`) is the pod network and replaces kube-proxy. Hubble shows the flows.
+
+```bash
+make cilium-install        # install or upgrade the pinned chart and wait until ready
+make cilium-status         # Cilium, Operator, Envoy and Hubble Relay should be OK, 3 of 3 agents
+make kubectl ARGS="get nodes"                       # Ready
+make kubectl ARGS="-n kube-system get pods -o wide" # cilium x3, cilium-envoy x3, operator, hubble-relay, hubble-ui, coredns
+make hubble-ui             # browser view of the flows (Ctrl+C to stop the port-forward)
+make cilium-uninstall      # remove Cilium; the nodes return to NotReady
+```
+
+Flows on the command line (stop the port-forward afterwards, for example with `kill %1`):
+
+```bash
+env -u KUBECONFIG cilium hubble port-forward --kubeconfig ~/.kube/kubeguard.kubeconfig &
+hubble observe --server localhost:4245 --namespace <namespace> --last 20
+hubble status --server localhost:4245          # Connected Nodes: 3/3
+```
+
+A quick test of Services without kube-proxy: create a pod and Service in a test namespace, then fetch it from a client pod that stays alive a few seconds (`sh -c 'wget -qO- -T 5 http://web'`); delete the namespace afterwards.
+
+## 9. LoadBalancer, Gateway API and storage (P1-U6)
+
+Layer 4 and layer 7 entry points and persistent volumes, all built on Cilium and local-path. Design and flows: the P1-U6 entry in `docs/specs/P1-cluster.md`.
+
+Image pulls need the internet window: `make vms-attach-internet` first (the internet network must be up).
+
+Order (CRDs first, restart after every Cilium values change):
+
+```bash
+make gateway-api-crds     # Gateway API CRDs, pinned version
+make cilium-install       # helm upgrade with k8s/cilium/values.yaml
+make cilium-restart       # Helm does not restart Cilium after a ConfigMap change
+make cilium-lb            # address pool 10.77.0.200-220 and the L2 announcement policy
+make storage-install      # local-path-provisioner, default StorageClass
+make net-test-u6          # acceptance check
+```
+
+Check from the host (it sits on the isolated bridge):
+
+```bash
+make kubectl ARGS="get svc lb-test"
+curl -s -o /dev/null -w "%{http_code}\n" http://10.77.0.200      # layer 4, expect 200
+make kubectl ARGS="get gateway gw-test"
+curl -si http://10.77.0.201 | head -3                            # layer 7, expect 200 and server: envoy
+make kubectl ARGS="-n kube-system get lease"                     # cilium-l2announce-* shows who answers ARP
+```
+
+Remove the test objects: `make kubectl ARGS="delete -f k8s/tests/"`.
 
 ## Troubleshooting
 
@@ -208,10 +261,13 @@ Installing `kubelet` and `kubeadm` by hand, if a node has no packages: add the `
 | Downloads or image pulls fail on a node | The node is isolated: `make vms-attach-internet` |
 | `kubeadm init` fails midway | `node 10.77.0.10 'sudo kubeadm reset -f'`, then `make ansible-apply` |
 | Rebuild fails on the Kubernetes repository key | The key expired on 2026-12-29: update the fingerprint pin in `infra/ansible/group_vars/all.yml` |
-| `kubectl` warns about version skew | The host `kubectl` is 1.35.x against server 1.37.1: use `kubectl` on `kg-control-1` (`node 10.77.0.10 'sudo kubectl --kubeconfig /etc/kubernetes/admin.conf ...'`) |
+| `kubectl` warns about version skew | The host `kubectl` is more than one minor version away from the server: install a matching client, or use `kubectl` on `kg-control-1` (`node 10.77.0.10 'sudo kubectl --kubeconfig /etc/kubernetes/admin.conf ...'`) |
+| Nodes do not start after a host reboot ("network ... is not active") | `internet0` is still attached: `make internet-network-up`, then start the VMs |
+| `LoadBalancer` has an address but `curl` says "No route to host", or the GatewayClass stays `Unknown` | Cilium was not restarted after a values change: `make cilium-restart` |
 
 ## Known limits
 
 - The Kubernetes apt signing key expires on 2026-12-29.
-- The host `kubectl` is two minor versions behind the cluster, outside the supported skew of one.
+- The host `kubectl` (1.35.7) is one minor version behind the cluster (1.36.5), which is within the supported skew. Keep it within one minor version of the server.
+- Host tools: Helm 4.3.0 (Helm 4.3.x supports Kubernetes 1.34 to 1.37; the old Helm 3.16.3 is kept as `helm-3.16.3`), Cilium CLI 0.20.1, Hubble CLI 1.20.2, all in `~/.local/bin`.
 - The masquerade check of the isolation test needs a terminal where `sudo` can ask for a password.
