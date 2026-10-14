@@ -1,0 +1,44 @@
+# Tier 1: nginx. "/" answers itself; "/api" is passed on to the backend Service.
+apiVersion: v1
+kind: ConfigMap
+metadata: {name: frontend-conf, namespace: sample}
+data:
+  default.conf: |
+    server {
+      listen 80;
+      location / {
+        default_type text/plain;
+        return 200 "frontend ok\n";
+      }
+      location /api {
+        proxy_pass http://backend.sample.svc.cluster.local:80/;
+      }
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: frontend, namespace: sample}
+spec:
+  replicas: 1
+  selector: {matchLabels: {app: frontend}}
+  template:
+    metadata: {labels: {app: frontend, tier: frontend}}
+    spec:
+      containers:
+        - name: nginx
+          image: nginx:1.27-alpine
+          ports: [{containerPort: 80}]
+          resources:
+            requests: {cpu: 10m, memory: 16Mi}
+            limits: {memory: 64Mi}
+          volumeMounts: [{name: conf, mountPath: /etc/nginx/conf.d}]
+      volumes:
+        - name: conf
+          configMap: {name: frontend-conf}
+---
+apiVersion: v1
+kind: Service
+metadata: {name: frontend, namespace: sample}
+spec:
+  selector: {app: frontend}
+  ports: [{port: 80, targetPort: 80}]

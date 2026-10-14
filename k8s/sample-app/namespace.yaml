@@ -1,0 +1,6 @@
+# P1-U8 sample application: a small two-tier web app used to prove the path
+# host -> Gateway (Envoy) -> frontend -> backend and to see its flows in Hubble.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: sample
