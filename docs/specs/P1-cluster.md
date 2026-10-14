@@ -194,6 +194,83 @@ One entry per finished unit: objective, rationale, deliverables, implementation,
 
 **Status.** Done. Branch `feat/p1-cluster-networking`.
 
+### P1-U6: Load balancer, Gateway API and storage
+
+**Objective.** Let workloads be reached from outside the cluster at layer 4 (address and port) and layer 7 (HTTP host and path), and give them persistent volumes.
+
+**Rationale.** A bare-metal cluster has no cloud load balancer, so a Service of type `LoadBalancer` stays without an address and no ingress exists. Cilium already runs as the pod network (P1-U5); using it for the load balancer and the ingress avoids a second component (MetalLB) and keeps one data path that Hubble can observe. Layer 4 is required because several attack scenarios use non-HTTP traffic (scans, DNS tunnelling, exfiltration); layer 7 is required for realistic web workloads and HTTP-level visibility. ingress-nginx was not chosen because it is retired. Storage uses local-path, which fits a lab with local disks. The choices are recorded as ADRs in P1-U12.
+
+**Deliverables.**
+- `k8s/cilium/values.yaml` (L2 announcements, external IPs, client rate limit, Gateway API), `k8s/cilium/lb-pool.yaml`, `k8s/cilium/l2-policy.yaml`.
+- Makefile targets `gateway-api-crds`, `cilium-lb`, `storage-install`, `net-test-u6`; versions `GATEWAY_API` and `LOCAL_PATH` in `infra/versions.env`.
+- Acceptance checks `k8s/tests/lb-test.yaml`, `gateway-test.yaml`, `pvc-test.yaml`.
+- Makefile target `cilium-restart` (added after a finding during the run).
+- [docs/reports/P1-U6-lb-gateway-storage-evidence.md](../reports/P1-U6-lb-gateway-storage-evidence.md).
+
+**Design.** The four Cilium files answer four questions:
+
+| Question | File | AWS counterpart |
+|---|---|---|
+| Which addresses may a LoadBalancer use? | `lb-pool.yaml` | Address space an NLB draws from |
+| Who announces the address on the network? | `l2-policy.yaml` | The AWS network layer that routes NLB addresses |
+| Which Cilium features run? | `values.yaml` | The load balancer controller and the NLB and ALB products |
+| How is it proven to work? | `k8s/tests/` | Smoke tests after a deploy |
+
+- `values.yaml`: `l2announcements.enabled` lets a node answer ARP for a Service address (this replaces the MetalLB speaker); `externalIPs.enabled` lets the eBPF code handle traffic to such addresses; `k8sClientRateLimit` is raised because L2 announcements keep one lease per Service; `gatewayAPI.enabled` starts the Gateway controller and registers the `cilium` GatewayClass, and needs the Gateway API CRDs installed first. LB IPAM (the address assignment) is on by default and idle until a pool exists.
+- `lb-pool.yaml`: `10.77.0.200` to `10.77.0.220`, above the DHCP range (.100 to .199) and the node addresses (.10 to .12). LB IPAM writes the next free address into the `EXTERNAL-IP` of each `LoadBalancer` Service.
+- `l2-policy.yaml`: announces LoadBalancer addresses on `isolated0` only, from worker nodes only. For each Service one eligible node holds a Kubernetes lease and answers ARP; another node takes the lease if it fails.
+- Limits: L2 announcement works only inside one network segment (true for `kg-isolated-network`), and one node receives all traffic for an address before eBPF spreads it to the pods. This is sufficient for a lab and is not a multi-node load balancer.
+
+**Network flow, layer 4 (`lb-test` Service).**
+
+```
+client (10.77.0.x)
+  | 1. ARP: "who has 10.77.0.200?"
+  v
+kg-isolated-network bridge --> kg-worker-1 answers with its MAC (it holds the lease, per l2-policy.yaml)
+  | 2. TCP to 10.77.0.200:80 arrives on worker-1 isolated0
+  v
+Cilium eBPF on isolated0 (replaces kube-proxy)
+  | 3. matches the LoadBalancer Service and picks a backend pod (any node; VXLAN tunnel if remote)
+  v
+pod lb-test (10.244.x.x)
+  | 4. the reply returns the same way (eBPF keeps the connection state)
+  v
+client
+```
+
+No HTTP is read. Hubble shows TCP flows between addresses.
+
+**Network flow, layer 7 (`gw-test` Gateway and HTTPRoute).**
+
+```
+client --> 10.77.0.201:80   (pool address given to the Service Cilium creates for the Gateway,
+  |                          announced by L2 as above)
+  v
+worker-N: eBPF redirects the traffic to Cilium's embedded Envoy (layer 7 proxy)
+  | Envoy reads the HTTP request (host, path, headers)
+  | HTTPRoute rule: path prefix "/" --> Service lb-test:80
+  v
+Envoy opens a new connection to an lb-test pod --> response --> Envoy --> client
+```
+
+The Gateway is the listener (port 80, HTTP), the HTTPRoute is the routing table. Envoy runs inside the Cilium agent, so no extra proxy pods are needed. The HTTP request is terminated and re-created, which is why Hubble can show HTTP-level data.
+
+**Storage flow (`pvc-test`).**
+
+```
+PVC pvc-test --> default StorageClass local-path --> provisioner creates a folder on the node disk
+pod pvc-test scheduled on a node --> mounts the folder at /data --> writes "ok"
+```
+
+The data lives on one node, so the pod is tied to that node (comparable to EBS, but local).
+
+**Implementation.** Order of work: install the Gateway API CRDs (pinned `standard-install.yaml`), upgrade the Cilium release with the new values, apply the pool and policy, install local-path-provisioner and mark its StorageClass as default. Helm updates the Cilium ConfigMap but does not restart the pods, so `make cilium-restart` follows every values change (without it, L2 announcements and the Gateway controller stay inactive). Image pulls need the internet window (`make vms-attach-internet`). The window stays open through the remaining build units and is closed (`make vms-isolate`) at the end of Phase 1 and before any attack run.
+
+**Verification.** `net-test-u6` must show: `lb-test` receiving an address from `10.77.0.200-220` and answering from a host on the isolated network; the Gateway `gw-test` programmed with an address and `HTTPRoute` accepted, and a request through it reaching `lb-test`; `pvc-test` bound and the pod `Ready`. `cilium status` stays healthy.
+
+**Status.** Done. Branch `feat/p1-cluster-networking`. The nodes are still in the build window; isolation is verified at the end of Phase 1.
+
 ## Risks
 
 - **RAM and disk.** The host is shared and has limited free memory. Mitigation: start with minimal sizes (D1), short Prometheus retention, thin disks, and measure idle use before scaling.

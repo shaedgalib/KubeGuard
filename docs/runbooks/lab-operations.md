@@ -105,7 +105,7 @@ for v in kg-worker-2-vm kg-worker-1-vm kg-control-1-vm; do virsh -c qemu:///syst
 for v in kg-control-1-vm kg-worker-1-vm kg-worker-2-vm; do virsh -c qemu:///system start $v; done
 ```
 
-The nodes are not set to start with the host. Start them again after a host reboot. The cluster comes back by itself once the nodes are up.
+The nodes are not set to start with the host. Start them again after a host reboot. The cluster comes back by itself once the nodes are up. While `internet0` is still attached, run `make internet-network-up` first: that network is not autostarted, and libvirt refuses to start a VM whose network is inactive.
 
 ## 5. Node setup with Ansible (P1-U2, U3, U4)
 
@@ -220,6 +220,35 @@ hubble status --server localhost:4245          # Connected Nodes: 3/3
 
 A quick test of Services without kube-proxy: create a pod and Service in a test namespace, then fetch it from a client pod that stays alive a few seconds (`sh -c 'wget -qO- -T 5 http://web'`); delete the namespace afterwards.
 
+## 9. LoadBalancer, Gateway API and storage (P1-U6)
+
+Layer 4 and layer 7 entry points and persistent volumes, all built on Cilium and local-path. Design and flows: the P1-U6 entry in `docs/specs/P1-cluster.md`.
+
+Image pulls need the internet window: `make vms-attach-internet` first (the internet network must be up).
+
+Order (CRDs first, restart after every Cilium values change):
+
+```bash
+make gateway-api-crds     # Gateway API CRDs, pinned version
+make cilium-install       # helm upgrade with k8s/cilium/values.yaml
+make cilium-restart       # Helm does not restart Cilium after a ConfigMap change
+make cilium-lb            # address pool 10.77.0.200-220 and the L2 announcement policy
+make storage-install      # local-path-provisioner, default StorageClass
+make net-test-u6          # acceptance check
+```
+
+Check from the host (it sits on the isolated bridge):
+
+```bash
+make kubectl ARGS="get svc lb-test"
+curl -s -o /dev/null -w "%{http_code}\n" http://10.77.0.200      # layer 4, expect 200
+make kubectl ARGS="get gateway gw-test"
+curl -si http://10.77.0.201 | head -3                            # layer 7, expect 200 and server: envoy
+make kubectl ARGS="-n kube-system get lease"                     # cilium-l2announce-* shows who answers ARP
+```
+
+Remove the test objects: `make kubectl ARGS="delete -f k8s/tests/"`.
+
 ## Troubleshooting
 
 | Symptom | Check |
@@ -233,6 +262,8 @@ A quick test of Services without kube-proxy: create a pod and Service in a test 
 | `kubeadm init` fails midway | `node 10.77.0.10 'sudo kubeadm reset -f'`, then `make ansible-apply` |
 | Rebuild fails on the Kubernetes repository key | The key expired on 2026-12-29: update the fingerprint pin in `infra/ansible/group_vars/all.yml` |
 | `kubectl` warns about version skew | The host `kubectl` is more than one minor version away from the server: install a matching client, or use `kubectl` on `kg-control-1` (`node 10.77.0.10 'sudo kubectl --kubeconfig /etc/kubernetes/admin.conf ...'`) |
+| Nodes do not start after a host reboot ("network ... is not active") | `internet0` is still attached: `make internet-network-up`, then start the VMs |
+| `LoadBalancer` has an address but `curl` says "No route to host", or the GatewayClass stays `Unknown` | Cilium was not restarted after a values change: `make cilium-restart` |
 
 ## Known limits
 
