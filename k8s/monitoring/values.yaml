@@ -1,0 +1,69 @@
+# Helm values for kube-prometheus-stack (P1-U7). Chart version is pinned in infra/versions.env.
+# Install with: make monitoring-install      Open Grafana with: make grafana-ui
+#
+# Sized for the lab: short retention, resource limits on every component, no Alertmanager.
+# The sizes are a starting point and are adjusted from measured use, not from guesses.
+
+# Alerting is not needed in Phase 1 and costs memory.
+alertmanager:
+  enabled: false
+
+prometheus:
+  prometheusSpec:
+    retention: 3d
+    retentionSize: 4GB
+    # Pick up ServiceMonitors and rules from any namespace, not only those with the chart's label.
+    serviceMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelectorNilUsesHelmValues: false
+    resources:
+      requests: {cpu: 200m, memory: 512Mi}
+      limits: {memory: 1536Mi}
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: local-path
+          accessModes: [ReadWriteOnce]
+          resources:
+            requests:
+              storage: 5Gi
+
+grafana:
+  # The admin password is not in this repository: `make monitoring-secret` creates the Secret
+  # grafana-admin in the cluster with a random password (read it with `make grafana-password`).
+  admin:
+    existingSecret: grafana-admin
+    userKey: admin-user
+    passwordKey: admin-password
+  persistence:
+    enabled: false
+  # 384 Mi was too small: the container was OOM-killed when dashboards were opened (P1-U7 evidence).
+  resources:
+    requests: {cpu: 50m, memory: 256Mi}
+    limits: {memory: 768Mi}
+
+prometheusOperator:
+  resources:
+    requests: {cpu: 50m, memory: 64Mi}
+    limits: {memory: 256Mi}
+
+kube-state-metrics:
+  resources:
+    requests: {cpu: 20m, memory: 32Mi}
+    limits: {memory: 128Mi}
+
+prometheus-node-exporter:
+  resources:
+    requests: {cpu: 20m, memory: 16Mi}
+    limits: {memory: 64Mi}
+
+# kubeadm binds the scheduler, controller manager and etcd metrics to localhost and runs no
+# kube-proxy (Cilium replaces it), so these targets would show as down. They are switched off
+# here; exposing them is a later change to the kubeadm configuration if it is needed.
+kubeProxy:
+  enabled: false
+kubeEtcd:
+  enabled: false
+kubeScheduler:
+  enabled: false
+kubeControllerManager:
+  enabled: false

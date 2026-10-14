@@ -7,7 +7,8 @@ PROJECT_KUBECONFIG := $(HOME)/.kube/kubeguard.kubeconfig
 CILIUM_VERSION := $(strip $(CILIUM))
 GATEWAY_API_VERSION := $(strip $(GATEWAY_API))
 LOCAL_PATH_VERSION := $(strip $(LOCAL_PATH))
-.PHONY: help isolated-network-up isolated-network-down isolated-network-test internet-network-up internet-network-down template-vm-create template-vm-snapshot template-vm-restore-test template-vm-destroy vms vms-status vms-test vms-isolate vms-attach-internet vms-snapshot vms-restore vms-destroy ansible-setup ansible-inventory ansible-apply ansible-test kubectl cilium-install cilium-status cilium-uninstall hubble-ui gateway-api-crds cilium-restart cilium-lb storage-install net-test-u6 sample-app-install sample-app-remove net-test-u8 sample-app-install sample-app-remove net-test-u8
+KUBE_PROMETHEUS_STACK_VERSION := $(strip $(KUBE_PROMETHEUS_STACK))
+.PHONY: help isolated-network-up isolated-network-down isolated-network-test internet-network-up internet-network-down template-vm-create template-vm-snapshot template-vm-restore-test template-vm-destroy vms vms-status vms-test vms-isolate vms-attach-internet vms-snapshot vms-restore vms-destroy ansible-setup ansible-inventory ansible-apply ansible-test kubectl cilium-install cilium-status cilium-uninstall hubble-ui gateway-api-crds cilium-restart cilium-lb storage-install net-test-u6 sample-app-install sample-app-remove net-test-u8 vms-resize monitoring-secret monitoring-install monitoring-status monitoring-uninstall grafana-password grafana-ui net-test-u7
 
 help: ## List targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-28s %s\n", $$1, $$2}'
@@ -64,6 +65,9 @@ vms-isolate: ## Detach the internet interface and run the isolation checks
 
 vms-attach-internet: ## Give every node VM its internet interface back (build window)
 	infra/libvirt/build-nodes.sh attach
+
+vms-resize: ## Apply the memory sizes in nodes.conf to the existing node VMs (restarts one node at a time)
+	infra/libvirt/build-nodes.sh resize
 
 vms-snapshot: ## Snapshot each node VM as <name>-clean-snapshot
 	infra/libvirt/build-nodes.sh snapshot
@@ -141,3 +145,30 @@ sample-app-remove: ## Remove the sample app (deletes the namespace)
 
 net-test-u8: ## P1-U8 acceptance: request from the host through the Gateway, Hubble flows
 	PROJECT_KUBECONFIG=$(PROJECT_KUBECONFIG) k8s/sample-app/test.sh
+
+# P1-U7: monitoring (Prometheus, Grafana, node and kube-state metrics). Chart pinned in infra/versions.env.
+# Image pulls need the internet window. Order: monitoring-secret, monitoring-install.
+monitoring-secret: ## Create the Grafana admin Secret with a random password (kept out of git; skipped if it exists)
+	$(KUBECTL_P) create namespace monitoring --dry-run=client -o yaml | $(KUBECTL_P) apply -f -
+	@$(KUBECTL_P) -n monitoring get secret grafana-admin >/dev/null 2>&1 && echo "grafana-admin already exists" || \
+		$(KUBECTL_P) -n monitoring create secret generic grafana-admin --from-literal=admin-user=admin --from-literal=admin-password="$$(openssl rand -base64 18)"
+
+monitoring-install: ## Install or upgrade kube-prometheus-stack (pinned chart) and wait until it is ready
+	env -u KUBECONFIG helm repo add prometheus-community https://prometheus-community.github.io/helm-charts --force-update >/dev/null
+	env -u KUBECONFIG helm --kubeconfig $(PROJECT_KUBECONFIG) upgrade --install monitoring prometheus-community/kube-prometheus-stack --version $(KUBE_PROMETHEUS_STACK_VERSION) --namespace monitoring --create-namespace --values k8s/monitoring/values.yaml --wait --timeout 10m
+
+monitoring-status: ## Show the monitoring pods, volumes and release
+	$(KUBECTL_P) -n monitoring get pods,pvc
+	env -u KUBECONFIG helm --kubeconfig $(PROJECT_KUBECONFIG) -n monitoring list
+
+monitoring-uninstall: ## Remove the monitoring release (the namespace, Secret and volumes stay)
+	env -u KUBECONFIG helm --kubeconfig $(PROJECT_KUBECONFIG) uninstall monitoring --namespace monitoring
+
+grafana-password: ## Print the Grafana admin password (user: admin)
+	@$(KUBECTL_P) -n monitoring get secret grafana-admin -o jsonpath='{.data.admin-password}' | base64 -d; echo
+
+grafana-ui: ## Port-forward Grafana to http://localhost:3000 (Ctrl+C to stop)
+	$(KUBECTL_P) -n monitoring port-forward svc/monitoring-grafana 3000:80
+
+net-test-u7: ## P1-U7 acceptance: targets scraped, Grafana healthy, dashboards loaded
+	PROJECT_KUBECONFIG=$(PROJECT_KUBECONFIG) k8s/monitoring/test.sh
