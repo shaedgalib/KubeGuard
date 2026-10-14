@@ -29,6 +29,70 @@ In scope:
 
 Out of scope: hardening (Phase 2), workloads and attacks (Phase 3), detection (Phase 4), eBPF feature work (Phase 5), LLM work (Phase 6), multi-node production features such as a highly available control plane.
 
+## Flow of Phase 1
+
+What gets built, and why in this order. Units marked (done) are finished; the rest are planned.
+
+```
+P1-U1  node VMs from the template (done) ........... machines exist, fixed addresses
+  │
+P1-U2  Ansible role common (done) .................. swap off, kernel modules, sysctl
+  │
+P1-U3  containerd (done) ........................... a container runtime on every node
+  │
+P1-U4  kubeadm init and join (done) ................ control plane up, workers joined, nodes NotReady
+  │
+P1-U5  Cilium + Hubble ............................. pod network, replaces kube-proxy: nodes Ready
+  │
+P1-U6  MetalLB, ingress or Gateway, storage ........ LoadBalancer IPs, a front door, disk for pods
+P1-U12 ADRs: CNI, load balancer, ingress, storage .. written as each choice is built
+  │
+P1-U7  Prometheus and Grafana ...................... baseline monitoring (RAM gets tight here)
+P1-U8  sample app ................................. reached from the host; its flow appears in Hubble
+  │
+P1-U9  etcd snapshot and restore ................... the cluster state can be recovered
+P1-U10 node drain, failure and rejoin .............. the cluster survives losing a node
+  │
+P1-U11 make up / down / reset / cluster ............ one command from clean VMs to a Ready cluster
+P1-U13 rebuild time ................................ measured, target under 40 minutes
+  │
+P1-U14 Phase 2 spec ................................ hardening plan, approved before it starts
+```
+
+Why this order:
+1. **Machines before software (U1 to U3).** Kubernetes needs identical, prepared nodes with a runtime. Doing this with Ansible first means every later step can be repeated on a rebuilt node.
+2. **The control plane before the network (U4 before U5).** `kubeadm` creates the API server and joins the workers. Nodes stay `NotReady` until a pod network exists, which is why Cilium comes next and kube-proxy was skipped at init.
+3. **The pod network before anything that serves traffic (U5 before U6).** MetalLB, ingress and storage all rely on pods being able to talk to each other and on Services working.
+4. **Monitoring and the sample app after the network (U7, U8).** Both need a working cluster, and U8 proves U5 and U6 together: a request from the host passes MetalLB and ingress, and Hubble shows the flow.
+5. **Drills after the cluster has something worth recovering (U9, U10).** The etcd restore and node-failure drills are only meaningful once the cluster holds real state.
+6. **Automation last (U11, U13).** Wrapping the steps in `make` is only reliable once each step works by hand, and the rebuild time can only be measured on the complete chain.
+7. **The Phase 2 spec at the end (U14).** Hardening is planned from what Phase 1 actually produced.
+
+### In AWS terms
+
+| In this lab | Closest AWS idea |
+|---|---|
+| libvirt and KVM on the host | The hypervisor under EC2 |
+| `kg-isolated-network` (no internet) | A private subnet with no route to an internet or NAT gateway |
+| `kg-internet-access-network` (build time only) | A subnet reached through a NAT gateway, attached only while installing |
+| `kg-template-vm` and its snapshot | An AMI and an EBS snapshot |
+| cloud-init seed | EC2 user data |
+| Node VMs `kg-control-1`, `kg-worker-1`, `kg-worker-2` | EC2 instances: one for the control plane, two as a node group |
+| DHCP reservations (fixed node addresses) | Fixed private IPs on network interfaces |
+| Ansible roles | Systems Manager State Manager, or any configuration management |
+| containerd | The container runtime on EKS worker nodes |
+| `kubeadm init` and `join` | What EKS does for you when it creates a managed control plane and joins nodes |
+| The project kubeconfig | The file `aws eks update-kubeconfig` writes |
+| Cilium | VPC CNI plus kube-proxy |
+| Hubble | VPC Flow Logs, but pod-aware and with policy verdicts |
+| MetalLB | The network load balancer that Kubernetes creates for a `LoadBalancer` Service |
+| Ingress or Gateway API | An application load balancer with the AWS Load Balancer Controller |
+| local-path storage | EBS volumes through the EBS CSI driver |
+| Prometheus and Grafana | CloudWatch Container Insights, or Managed Prometheus and Managed Grafana |
+| etcd snapshot and restore | Something EKS does for you; here you do it yourself |
+| Node drain and failure drills | Replacing instances in a managed node group |
+| `make cluster` | Terraform or eksctl: one command that builds the environment |
+
 ## Design decisions to confirm
 
 Names follow [docs/naming.md](../naming.md). Accepted by the researcher on 2026-10-09 as the working plan for Phase 1. Any change found necessary during the build is recorded under "Amendments" below, and becomes an ADR where it is a major choice. Each decision also becomes an ADR or a note in the relevant unit.
@@ -53,15 +117,15 @@ Names follow [docs/naming.md](../naming.md). Accepted by the researcher on 2026-
 | P1-U2 | Ansible role `common` (swap off, kernel modules, sysctl) | Idempotent re-run reports no changes | `feat/p1-nodes` | [x] |
 | P1-U3 | Ansible role `containerd` | `crictl info` OK on all nodes | `feat/p1-nodes` | [x] |
 | P1-U4 | Ansible roles kubeadm init and join | 3 nodes join, API reachable | `feat/p1-nodes` | [x] |
-| P1-U5 | Cilium with kube-proxy replacement, Hubble relay and UI | `cilium status` healthy, flows visible | `feat/p1-networking` | [ ] |
-| P1-U6 | MetalLB (L2 pool), ingress or Gateway API, local-path storage | LoadBalancer IP assigned, PVC binds | `feat/p1-networking` | [ ] |
-| P1-U7 | kube-prometheus-stack with short retention | Grafana dashboards load, RAM within budget | `feat/p1-apps-monitoring` | [ ] |
-| P1-U8 | Sample app via MetalLB and ingress, flows seen in Hubble | Request from host succeeds, flow appears | `feat/p1-apps-monitoring` | [ ] |
-| P1-U9 | etcd snapshot and restore drill | Restore tested, steps in runbook | `feat/p1-drills` | [ ] |
-| P1-U10 | Node drain, node failure and rejoin drills | Cluster recovers, steps in runbook | `feat/p1-drills` | [ ] |
-| P1-U11 | `make up`, `make down`, `make reset`, `make cluster` | Clean VMs to Ready cluster with one command | `feat/p1-automation` | [ ] |
-| P1-U12 | ADRs: CNI, load balancer, ingress, storage | 4 ADRs committed | `feat/p1-networking` | [ ] |
-| P1-U13 | Rebuild time measured | Documented, target under 40 minutes | `feat/p1-automation` | [ ] |
+| P1-U5 | Cilium with kube-proxy replacement, Hubble relay and UI | `cilium status` healthy, flows visible | `feat/p1-cluster-networking` | [x] |
+| P1-U6 | Cilium LB IPAM with L2 announcements, Cilium Gateway API, local-path storage | LoadBalancer IP assigned, PVC binds | `feat/p1-cluster-networking` | [x] |
+| P1-U7 | kube-prometheus-stack with short retention | Grafana dashboards load, RAM within budget | `feat/p1-cluster-monitoring-apps` | [x] |
+| P1-U8 | Sample app via the load balancer and Gateway, flows seen in Hubble | Request from host succeeds, flow appears | `feat/p1-cluster-monitoring-apps` | [x] |
+| P1-U9 | etcd snapshot and restore drill | Restore tested, steps in runbook | `feat/p1-cluster-drills` | [ ] |
+| P1-U10 | Node drain, node failure and rejoin drills | Cluster recovers, steps in runbook | `feat/p1-cluster-drills` | [ ] |
+| P1-U11 | `make up`, `make down`, `make reset`, `make cluster` | Clean VMs to Ready cluster with one command | `feat/p1-cluster-automation` | [ ] |
+| P1-U12 | ADRs: CNI, load balancer, ingress, storage | 4 ADRs committed | `feat/p1-cluster-networking` | [x] |
+| P1-U13 | Rebuild time measured | Documented, target under 40 minutes | `feat/p1-cluster-automation` | [ ] |
 | P1-U14 | Phase 2 spec | `docs/specs/P2-hardening.md` approved | `docs/p1-p2-spec` | [ ] |
 
 ## Branches
@@ -71,10 +135,10 @@ Related units share one feature branch. Each branch is cut from `main`, merged i
 | Branch | Units | Done when |
 |---|---|---|
 | `feat/p1-nodes` | P1-U1 to U4 | 3 nodes Ready, API reachable, `common` role idempotent |
-| `feat/p1-networking` | P1-U5, U6, U12 | Hubble healthy, LoadBalancer IP assigned, PVC binds, 4 ADRs committed |
-| `feat/p1-apps-monitoring` | P1-U7, U8 | Dashboards load, request from host succeeds, flow visible in Hubble |
-| `feat/p1-drills` | P1-U9, U10 | etcd restore tested, node drills done, both runbooks written |
-| `feat/p1-automation` | P1-U11, U13 | `make cluster` from clean VMs, rebuild time documented |
+| `feat/p1-cluster-networking` | P1-U5, U6, U12 | Hubble healthy, LoadBalancer IP assigned, PVC binds, 4 ADRs committed |
+| `feat/p1-cluster-monitoring-apps` | P1-U7, U8 | Dashboards load, request from host succeeds, flow visible in Hubble |
+| `feat/p1-cluster-drills` | P1-U9, U10 | etcd restore tested, node drills done, both runbooks written |
+| `feat/p1-cluster-automation` | P1-U11, U13 | `make cluster` from clean VMs, rebuild time documented |
 | `docs/p1-p2-spec` | P1-U14 and the Phase 1 retrospective | Phase 2 spec approved |
 
 If a unit fails its check on `dev`, it is fixed on its branch and merged into `dev` again; the other branches are not blocked.
@@ -90,7 +154,7 @@ Dependencies, deliverables and division of work. Core cluster setup is written b
 | P1-U3 | U2 | `roles/containerd` | Runtime configuration | Role, `crictl` check |
 | P1-U4 | U3 | `roles/kubeadm_init`, `roles/kubeadm_join`, kubeconfig handling (project kubeconfig only) | kubeadm configuration | Role plumbing, join test |
 | P1-U5 | U4, D3 | `k8s/cilium/values.yaml`, install target | Cilium values and interface pinning | Install automation, `cilium status` check |
-| P1-U6 | U5, D4 | `k8s/metallb/`, ingress values, storage class | Address pool, ingress choice | Manifests, PVC and LoadBalancer tests |
+| P1-U6 | U5, D4 | `k8s/cilium/lb-pool.yaml`, `l2-policy.yaml`, Gateway API CRDs, storage class | Address pool, ingress choice | Manifests, PVC and LoadBalancer tests |
 | P1-U7 | U6 | `k8s/monitoring/values.yaml` | Retention and resource limits | Helm automation, dashboard check |
 | P1-U8 | U6, U5 | `k8s/sample-app/` | App choice | Manifests, request test |
 | P1-U9 | U4 | `docs/runbooks/etcd-restore.md`, snapshot script | Restore procedure | Script, runbook draft |
@@ -337,6 +401,9 @@ No gate closes Phase 1. Gate G1 follows Phase 2. Pass condition for the phase: f
 Changes to the approved plan during Phase 1. One line each: date, decision number, change, reason.
 
 2026-10-09 | workflow | The 14 units are grouped into six branches (see Branches and the Branch column) | Fewer branches, same acceptance checks per unit
+2026-10-10 | workflow | The networking branch is named `feat/p1-cluster-networking` (was `feat/p1-networking`) | The name says what the branch builds: the cluster networking
+2026-10-10 | workflow | The drills and automation branches are named `feat/p1-cluster-drills` (was `feat/p1-drills`) and `feat/p1-cluster-automation` (was `feat/p1-automation`) | The names say that both work on the whole cluster
+2026-10-10 | workflow | The monitoring and apps branch is named `feat/p1-cluster-monitoring-apps` (was `feat/p1-apps-monitoring`) | Consistent with the other cluster branches
 2026-10-10 | D8 | Kubernetes pinned to 1.36.5 (was 1.37.1) and `crictl` to 1.36.0 (was 1.37.0); Helm 4.3.0 installed on the host (was 3.16.3); the cluster was rebuilt | Cilium 1.20 lists Kubernetes 1.33 to 1.36 only, 1.37 is not covered; Helm 4.3.x supports Kubernetes 1.34 to 1.37 and Helm 3.16 does not cover 1.36; containerd 2.3.6 supports 1.36
 2026-10-14 | D4, D7 | Layer 4 load balancer is Cilium LB IPAM with L2 announcements (was MetalLB); layer 7 entry is Cilium Gateway API (was open between ingress-nginx and Gateway API); pool `10.77.0.200-220` unchanged | One component fewer, one observable data path; ingress-nginx is retired; see ADR-003 and ADR-004
 2026-10-14 | D1 | Node memory raised to 3 GiB (control plane) and 5 GiB (workers), from 2 GiB each; the plan sizes (4, 8, 8 GiB) were not used | Control plane had 803 MiB available; 4/8/8 GiB would leave the 32 GB host with little free memory; sized as a start, to be tuned from measured use

@@ -45,15 +45,15 @@ KubeGuard extends your undergraduate NetGuard project (network performance monit
 
 ## 2. Roadmap and milestones
 
-| Phase | Weeks (dates) | Focus | Main output |
-|---|---|---|---|
-| 0 | 1 (8-14 Oct) | Lab, repo, literature scan | Repo, literature matrix, RQ v0 |
-| 1 | 2-5 (15 Oct-11 Nov) | Bare-metal cluster and networking | One-command cluster rebuild |
-| 2 | 6-9 (12 Nov-9 Dec) | Security hardening | Hardening report v1 |
-| 3 | 10-13 (10 Dec-6 Jan) | Workload, attacks, data pipeline | Dataset v0.1 |
-| 4 | 14-22 (7 Jan-10 Mar) | Intrusion detection | Paper 1 draft, arXiv |
-| 5 | 20-30 (18 Feb-5 May) | eBPF observability | Paper 2 draft |
-| 6 | 28-40 (15 Apr-7 Jul) | LLMs for security | Paper 3 draft |
+| Phase | Focus | Main output |
+|---|---|---|
+| 0 | Lab, repo, literature scan | Repo, literature matrix, RQ v0 |
+| 1 | Bare-metal cluster and networking | One-command cluster rebuild |
+| 2 | Security hardening | Hardening report v1 |
+| 3 | Workload, attacks, data pipeline | Dataset v0.1 |
+| 4 | Intrusion detection | Detectors and benchmark results |
+| 5 | eBPF observability | Low-overhead flow and event features |
+| 6 | LLMs for security | Alert triage and policy synthesis |
 
 
 ### Decision gates
