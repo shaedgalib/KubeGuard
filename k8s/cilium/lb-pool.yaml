@@ -1,0 +1,10 @@
+# Address pool for LoadBalancer Services (P1-U6). Above the DHCP range (.100-.199) and the
+# node addresses (.10-.12) on kg-isolated-network, so nothing else can claim these addresses.
+apiVersion: cilium.io/v2
+kind: CiliumLoadBalancerIPPool
+metadata:
+  name: kg-lb-pool
+spec:
+  blocks:
+    - start: 10.77.0.200
+      stop: 10.77.0.220

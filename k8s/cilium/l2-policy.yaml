@@ -1,0 +1,14 @@
+# Announce the pool addresses with ARP on the isolated interface (P1-U6). The node that holds the
+# lease for a Service answers ARP for its address; another node takes over if it fails.
+apiVersion: cilium.io/v2alpha1
+kind: CiliumL2AnnouncementPolicy
+metadata:
+  name: kg-l2-policy
+spec:
+  loadBalancerIPs: true
+  interfaces:
+    - ^isolated0$
+  nodeSelector:
+    matchExpressions:
+      - key: node-role.kubernetes.io/control-plane
+        operator: DoesNotExist

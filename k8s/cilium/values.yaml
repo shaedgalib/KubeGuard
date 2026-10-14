@@ -38,6 +38,18 @@ hubble:
   ui:
     enabled: true
 
-# Gateway API (ingress replacement, P1-U6) is switched on later, after its CRDs are installed.
+# Layer 4 load balancer (P1-U6): Cilium hands out LoadBalancer addresses from a pool
+# (k8s/cilium/lb-pool.yaml) and answers ARP for them on the isolated network, so no MetalLB is needed.
+l2announcements:
+  enabled: true
+externalIPs:
+  enabled: true
+# L2 announcements keep a lease per Service, which raises the API request rate.
+k8sClientRateLimit:
+  qps: 20
+  burst: 40
+
+# Layer 7 entry (P1-U6): Cilium Gateway API. The Gateway API CRDs must exist first
+# (make gateway-api-crds), otherwise the operator cannot register the controller.
 gatewayAPI:
-  enabled: false
+  enabled: true

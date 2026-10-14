@@ -1,0 +1,20 @@
+# P1-U6 check, storage: a PVC on the default class must bind once a pod uses it.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata: {name: pvc-test, namespace: default}
+spec:
+  accessModes: [ReadWriteOnce]
+  resources: {requests: {storage: 100Mi}}
+---
+apiVersion: v1
+kind: Pod
+metadata: {name: pvc-test, namespace: default}
+spec:
+  containers:
+    - name: writer
+      image: busybox:1.37
+      command: [sh, -c, "echo ok > /data/probe && cat /data/probe && sleep 3600"]
+      volumeMounts: [{name: data, mountPath: /data}]
+  volumes:
+    - name: data
+      persistentVolumeClaim: {claimName: pvc-test}
