@@ -271,6 +271,22 @@ The data lives on one node, so the pod is tied to that node (comparable to EBS, 
 
 **Status.** Done. Branch `feat/p1-cluster-networking`. The nodes are still in the build window; isolation is verified at the end of Phase 1.
 
+### P1-U8: Sample application
+
+**Objective.** Run a small application behind the Gateway and show its flows in Hubble.
+
+**Rationale.** It exercises the whole entry path built in P1-U5 and P1-U6 (address pool, L2 announcement, Envoy, pod network) with a real two-tier request, and shows that Hubble sees both the HTTP request and the pod-to-pod connection. The larger Online Boutique application is planned for P3-U1 and does not fit the 2 GiB nodes now.
+
+**Deliverables.**
+- `k8s/sample-app/` (namespace, backend, frontend, Gateway and HTTPRoute, `test.sh`), Makefile targets `sample-app-install`, `sample-app-remove`, `net-test-u8`.
+- [docs/reports/P1-U8-sample-app-evidence.md](../reports/P1-U8-sample-app-evidence.md).
+
+**Implementation.** Two nginx deployments (`nginx:1.27-alpine`, 16 Mi memory request each) in namespace `sample`. The frontend answers `/` and passes `/api` to the backend Service; a Gateway `sample-gw` with an HTTPRoute exposes the frontend on a pool address. `test.sh` reads the Gateway address, requests both paths from the host (with a retry, see the evidence) and prints Hubble flows from every Cilium agent.
+
+**Verification.** `/` returns `frontend ok` and `/api` returns `backend ok` from the host; Hubble shows `http-request` and `http-response` records and the frontend to backend TCP connection with verdict `FORWARDED`.
+
+**Status.** Done. Branch `feat/p1-cluster-monitoring-apps`.
+
 ### P1-U12: Architecture decision records
 
 **Objective.** Record the four major networking and storage choices of Phase 1 as ADRs.

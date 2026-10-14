@@ -7,7 +7,7 @@ PROJECT_KUBECONFIG := $(HOME)/.kube/kubeguard.kubeconfig
 CILIUM_VERSION := $(strip $(CILIUM))
 GATEWAY_API_VERSION := $(strip $(GATEWAY_API))
 LOCAL_PATH_VERSION := $(strip $(LOCAL_PATH))
-.PHONY: help isolated-network-up isolated-network-down isolated-network-test internet-network-up internet-network-down template-vm-create template-vm-snapshot template-vm-restore-test template-vm-destroy vms vms-status vms-test vms-isolate vms-attach-internet vms-snapshot vms-restore vms-destroy ansible-setup ansible-inventory ansible-apply ansible-test kubectl cilium-install cilium-status cilium-uninstall hubble-ui gateway-api-crds cilium-restart cilium-lb storage-install net-test-u6
+.PHONY: help isolated-network-up isolated-network-down isolated-network-test internet-network-up internet-network-down template-vm-create template-vm-snapshot template-vm-restore-test template-vm-destroy vms vms-status vms-test vms-isolate vms-attach-internet vms-snapshot vms-restore vms-destroy ansible-setup ansible-inventory ansible-apply ansible-test kubectl cilium-install cilium-status cilium-uninstall hubble-ui gateway-api-crds cilium-restart cilium-lb storage-install net-test-u6 sample-app-install sample-app-remove net-test-u8 sample-app-install sample-app-remove net-test-u8
 
 help: ## List targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-28s %s\n", $$1, $$2}'
@@ -129,3 +129,15 @@ net-test-u6: ## P1-U6 acceptance: LoadBalancer address, Gateway route, PVC bind
 	$(KUBECTL_P) rollout status deployment/lb-test --timeout=120s
 	$(KUBECTL_P) wait --for=condition=Ready pod/pvc-test --timeout=120s
 	$(KUBECTL_P) get svc,gateway,httproute,pvc
+
+# P1-U8: sample application (two tiers behind a Gateway). Image pulls need the internet window.
+sample-app-install: ## Deploy the sample app and wait until it is ready
+	$(KUBECTL_P) apply -f k8s/sample-app/namespace.yaml
+	$(KUBECTL_P) apply -f k8s/sample-app/
+	$(KUBECTL_P) -n sample rollout status deployment/backend deployment/frontend --timeout=180s
+
+sample-app-remove: ## Remove the sample app (deletes the namespace)
+	$(KUBECTL_P) delete namespace sample --ignore-not-found
+
+net-test-u8: ## P1-U8 acceptance: request from the host through the Gateway, Hubble flows
+	PROJECT_KUBECONFIG=$(PROJECT_KUBECONFIG) k8s/sample-app/test.sh
