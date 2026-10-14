@@ -249,6 +249,18 @@ make kubectl ARGS="-n kube-system get lease"                     # cilium-l2anno
 
 Remove the test objects: `make kubectl ARGS="delete -f k8s/tests/"`.
 
+## 10. Sample application (P1-U8)
+
+A two-tier web app behind a Gateway, used to prove the entry path and to see flows in Hubble. Image pulls need the internet window.
+
+```bash
+make sample-app-install      # namespace sample: backend, frontend, Gateway, HTTPRoute
+make net-test-u8             # requests / and /api from the host, prints Hubble flows
+make sample-app-remove       # delete the namespace
+```
+
+A `no healthy upstream` answer right after an install means Envoy has not yet learned the endpoints; wait a few seconds and retry (the test already does). Flows can also be read by hand: `make kubectl ARGS="-n kube-system exec ds/cilium -c cilium-agent -- hubble observe --namespace sample --last 20"` (one node only; the test loops over all agents).
+
 ## Troubleshooting
 
 | Symptom | Check |
