@@ -271,6 +271,22 @@ The data lives on one node, so the pod is tied to that node (comparable to EBS, 
 
 **Status.** Done. Branch `feat/p1-cluster-networking`. The nodes are still in the build window; isolation is verified at the end of Phase 1.
 
+### P1-U7: Monitoring
+
+**Objective.** Run Prometheus and Grafana so cluster and node health can be observed, and size the nodes to carry them.
+
+**Rationale.** Later phases measure overhead (RQ2) and need a baseline of node and cluster behaviour. The nodes started at 2 GiB (D1) and the control plane had 803 MiB available, so the memory was raised first, as D1 allows when a unit needs it.
+
+**Deliverables.**
+- `k8s/monitoring/values.yaml` and `test.sh`, Makefile targets `monitoring-secret`, `monitoring-install`, `monitoring-status`, `monitoring-uninstall`, `grafana-password`, `grafana-ui`, `net-test-u7`, and `vms-resize`; the chart version in `infra/versions.env`; the new memory sizes in `infra/libvirt/nodes.conf` and the `resize` command in `infra/libvirt/build-nodes.sh`.
+- [docs/reports/P1-U7-monitoring-evidence.md](../reports/P1-U7-monitoring-evidence.md).
+
+**Implementation.** `make vms-resize` set the memory to 3 GiB (control plane) and 5 GiB (workers), one node at a time. `kube-prometheus-stack` 92.6.0 is installed with Helm from the host with short retention (3 days, 4 GB), a 5 GiB `local-path` volume, resource limits on every component (the Grafana limit was raised to 768 Mi after an out-of-memory kill during dashboard browsing) and no Alertmanager. The Grafana admin password lives only in a Secret created in the cluster. Targets that kubeadm does not expose (etcd, scheduler, controller manager) and kube-proxy are disabled.
+
+**Verification.** All pods `Running` and the volume `Bound`; Prometheus reports 20 targets with none down and metrics from all three nodes; Grafana's health endpoint reports the database `ok` and 24 dashboards are provisioned; the researcher opened Grafana in the browser through a port-forward.
+
+**Status.** Done. Branch `feat/p1-cluster-monitoring-apps`.
+
 ### P1-U8: Sample application
 
 **Objective.** Run a small application behind the Gateway and show its flows in Hubble.
@@ -323,6 +339,7 @@ Changes to the approved plan during Phase 1. One line each: date, decision numbe
 2026-10-09 | workflow | The 14 units are grouped into six branches (see Branches and the Branch column) | Fewer branches, same acceptance checks per unit
 2026-10-10 | D8 | Kubernetes pinned to 1.36.5 (was 1.37.1) and `crictl` to 1.36.0 (was 1.37.0); Helm 4.3.0 installed on the host (was 3.16.3); the cluster was rebuilt | Cilium 1.20 lists Kubernetes 1.33 to 1.36 only, 1.37 is not covered; Helm 4.3.x supports Kubernetes 1.34 to 1.37 and Helm 3.16 does not cover 1.36; containerd 2.3.6 supports 1.36
 2026-10-14 | D4, D7 | Layer 4 load balancer is Cilium LB IPAM with L2 announcements (was MetalLB); layer 7 entry is Cilium Gateway API (was open between ingress-nginx and Gateway API); pool `10.77.0.200-220` unchanged | One component fewer, one observable data path; ingress-nginx is retired; see ADR-003 and ADR-004
+2026-10-14 | D1 | Node memory raised to 3 GiB (control plane) and 5 GiB (workers), from 2 GiB each; the plan sizes (4, 8, 8 GiB) were not used | Control plane had 803 MiB available; 4/8/8 GiB would leave the 32 GB host with little free memory; sized as a start, to be tuned from measured use
 
 ## Retrospective
 
