@@ -1,5 +1,6 @@
 # P1-U3 evidence: Ansible role `containerd`
 
+> Note: `crictl` was later changed from 1.37.0 to 1.36.0 when the cluster moved to Kubernetes 1.36.5 (see the P1 spec amendments); the procedure and checks are unchanged.
 Date: 2026-10-09. Branch: `feat/p1-nodes`. Pins ([infra/versions.env](../../infra/versions.env)), each checked on the project's release page: containerd 2.3.6 (LTS line, supported until April 2028, supports Kubernetes 1.36 and 1.37), runc 1.5.2 (the version containerd 2.3 expects), cri-tools 1.37.0. Each download is verified against a SHA256 hash pinned in `infra/ansible/group_vars/all.yml`, taken from the project's own checksum files. Ubuntu's packaged containerd (2.2.1) was not used: Kubernetes 1.37 needs containerd 2.3.0 or newer, and the 2.2 line ends on 2026-11-06.
 
 ## Runs
