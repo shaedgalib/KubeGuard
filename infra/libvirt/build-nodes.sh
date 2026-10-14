@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # P1-U1: create, test, isolate, snapshot and destroy the cluster node VMs.
-# Usage: build-nodes.sh create | status | test | isolate | attach | snapshot | restore | destroy
+# Usage: build-nodes.sh create | status | test | isolate | attach | resize | snapshot | restore | destroy
 # Nodes are listed in nodes.conf. Names follow docs/naming.md.
 set -euo pipefail
 V="virsh -c qemu:///system"
@@ -149,6 +149,21 @@ attach() {  # give every node its internet interface back (build window)
   return $FAILED
 }
 
+resize() {  # set each node's memory to the nodes.conf value; one node at a time (shutdown, set, start)
+  while read -r name role ip imac emac vcpus mem disk; do
+    local want=$(( mem * 1024 )) have
+    have=$($V dominfo "$name-vm" | awk '/Max memory/ {print $3}')
+    if [ "$have" = "$want" ]; then echo "$name: already $mem MiB"; continue; fi
+    echo "$name: $(( have / 1024 )) MiB -> $mem MiB"
+    $V shutdown "$name-vm" >/dev/null 2>&1 || true
+    wait_off "$name-vm" || { echo "$name-vm did not shut down"; exit 1; }
+    $V setmaxmem "$name-vm" "$want" --config
+    $V setmem "$name-vm" "$want" --config
+    $V start "$name-vm" >/dev/null
+    wait_ssh "$ip" 300 && echo "back up: $name" || { echo "NOT reachable: $name"; exit 1; }
+  done < <(rows)
+}
+
 snapshot() {
   while read -r name role ip imac emac vcpus mem disk; do $V shutdown "$name-vm" >/dev/null; done < <(rows)
   while read -r name role ip imac emac vcpus mem disk; do
@@ -178,7 +193,7 @@ destroy() {
 }
 
 case "${1:-}" in
-  create) create ;; status) status ;; test) test_nodes ;; isolate) isolate ;; attach) attach ;;
+  create) create ;; status) status ;; test) test_nodes ;; isolate) isolate ;; attach) attach ;; resize) resize ;;
   snapshot) snapshot ;; restore) restore ;; destroy) destroy ;;
-  *) echo "usage: $0 create|status|test|isolate|attach|snapshot|restore|destroy"; exit 2 ;;
+  *) echo "usage: $0 create|status|test|isolate|attach|resize|snapshot|restore|destroy"; exit 2 ;;
 esac

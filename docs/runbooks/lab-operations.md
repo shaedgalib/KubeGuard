@@ -84,7 +84,7 @@ The template must be shut off before nodes are created from it.
 
 ## 4. Node VMs (P1-U1)
 
-Each node has two interfaces: `isolated0` (permanent, fixed address through a DHCP reservation) and `internet0` (build window only; while attached it carries the default route with the lower metric). Sizing starts at 2 vCPU, 2 GiB RAM and 20 GiB disk per node (`infra/libvirt/nodes.conf`). Three nodes use 6 GiB of RAM.
+Each node has two interfaces: `isolated0` (permanent, fixed address through a DHCP reservation) and `internet0` (build window only; while attached it carries the default route with the lower metric). Sizing is set in `infra/libvirt/nodes.conf`: 2 vCPU and 20 GiB disk per node; memory 3 GiB for the control plane and 5 GiB for each worker (raised from 2 GiB each in P1-U7). Change a value there and run `make vms-resize` to apply it to the existing VMs (one node at a time, no rebuild). Three nodes use 13 GiB of RAM.
 
 ```bash
 make vms                    # create the three nodes and wait until they answer on SSH
@@ -248,6 +248,34 @@ make kubectl ARGS="-n kube-system get lease"                     # cilium-l2anno
 ```
 
 Remove the test objects: `make kubectl ARGS="delete -f k8s/tests/"`.
+
+## 10. Sample application (P1-U8)
+
+A two-tier web app behind a Gateway, used to prove the entry path and to see flows in Hubble. Image pulls need the internet window.
+
+```bash
+make sample-app-install      # namespace sample: backend, frontend, Gateway, HTTPRoute
+make net-test-u8             # requests / and /api from the host, prints Hubble flows
+make sample-app-remove       # delete the namespace
+```
+
+A `no healthy upstream` answer right after an install means Envoy has not yet learned the endpoints; wait a few seconds and retry (the test already does). Flows can also be read by hand: `make kubectl ARGS="-n kube-system exec ds/cilium -c cilium-agent -- hubble observe --namespace sample --last 20"` (one node only; the test loops over all agents).
+
+## 11. Monitoring (P1-U7)
+
+Prometheus and Grafana (kube-prometheus-stack, chart pinned in `infra/versions.env`) in namespace `monitoring`. Image pulls need the internet window.
+
+```bash
+make vms-resize              # once: apply the memory sizes from nodes.conf
+make monitoring-secret       # Grafana admin Secret with a random password (not in git)
+make monitoring-install      # helm install, waits until ready
+make net-test-u7             # targets scraped, Grafana healthy, dashboards loaded
+make grafana-password        # print the admin password (user: admin)
+make grafana-ui              # http://localhost:3000 through a port-forward, Ctrl+C to stop
+make monitoring-uninstall    # remove the release (namespace, Secret and volume stay)
+```
+
+The test reaches Prometheus and Grafana through the API server's Service proxy, for example `make kubectl ARGS='get --raw /api/v1/namespaces/monitoring/services/monitoring-grafana:80/proxy/api/health'`.
 
 ## Troubleshooting
 
