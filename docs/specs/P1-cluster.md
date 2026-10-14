@@ -271,6 +271,21 @@ The data lives on one node, so the pod is tied to that node (comparable to EBS, 
 
 **Status.** Done. Branch `feat/p1-cluster-networking`. The nodes are still in the build window; isolation is verified at the end of Phase 1.
 
+### P1-U12: Architecture decision records
+
+**Objective.** Record the four major networking and storage choices of Phase 1 as ADRs.
+
+**Rationale.** The CNI, layer 4 load balancer, layer 7 entry and storage are choices that shape every later phase and could be questioned or changed. Each is written down with the options considered, the decision and its consequences, so the reasoning survives beyond the build.
+
+**Deliverables.**
+- [ADR-002](../adr/ADR-002-cni-cilium.md) (CNI and kube-proxy replacement), [ADR-003](../adr/ADR-003-load-balancer-cilium-l2.md) (layer 4 load balancer), [ADR-004](../adr/ADR-004-ingress-cilium-gateway-api.md) (layer 7 entry, resolves D7), [ADR-005](../adr/ADR-005-storage-local-path.md) (storage).
+
+**Implementation.** Each ADR follows `docs/adr/_template.md` and cites the evidence report of the unit that verified it (P1-U5 and P1-U6). The load balancer decision replaces the MetalLB default of D4 and the plan's wording; see the amendments.
+
+**Verification.** Four ADRs exist with status `accepted`, each with context, at least two options, a decision and consequences, and links to evidence that exists in `docs/reports/`.
+
+**Status.** Done. Branch `feat/p1-cluster-networking`.
+
 ## Risks
 
 - **RAM and disk.** The host is shared and has limited free memory. Mitigation: start with minimal sizes (D1), short Prometheus retention, thin disks, and measure idle use before scaling.
@@ -291,6 +306,7 @@ Changes to the approved plan during Phase 1. One line each: date, decision numbe
 
 2026-10-09 | workflow | The 14 units are grouped into six branches (see Branches and the Branch column) | Fewer branches, same acceptance checks per unit
 2026-10-10 | D8 | Kubernetes pinned to 1.36.5 (was 1.37.1) and `crictl` to 1.36.0 (was 1.37.0); Helm 4.3.0 installed on the host (was 3.16.3); the cluster was rebuilt | Cilium 1.20 lists Kubernetes 1.33 to 1.36 only, 1.37 is not covered; Helm 4.3.x supports Kubernetes 1.34 to 1.37 and Helm 3.16 does not cover 1.36; containerd 2.3.6 supports 1.36
+2026-10-14 | D4, D7 | Layer 4 load balancer is Cilium LB IPAM with L2 announcements (was MetalLB); layer 7 entry is Cilium Gateway API (was open between ingress-nginx and Gateway API); pool `10.77.0.200-220` unchanged | One component fewer, one observable data path; ingress-nginx is retired; see ADR-003 and ADR-004
 
 ## Retrospective
 
