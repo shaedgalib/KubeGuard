@@ -53,7 +53,7 @@ Names follow [docs/naming.md](../naming.md). Accepted by the researcher on 2026-
 
 | Unit | Description | Acceptance check | Branch | Status |
 |---|---|---|---|---|
-| P2-U1 | Baseline scans: kube-bench and kubescape, before any change | Scores saved under `docs/reports/` | `feat/p2-baseline-hardening` | [ ] |
+| P2-U1 | Baseline scans: kube-bench and kubescape, before any change | Scores saved under `docs/reports/` | `feat/p2-baseline-hardening` | [x] |
 | P2-U2 | Fix CIS findings: kubelet auth, anonymous access, file permissions, API server flags | Re-scan shows each fix | `feat/p2-baseline-hardening` | [ ] |
 | P2-U3 | RBAC audit to least privilege | Audit report, no wildcard roles outside system | `feat/p2-access-control` | [ ] |
 | P2-U4 | Pod Security Admission at restricted | Privileged pod rejected | `feat/p2-access-control` | [ ] |

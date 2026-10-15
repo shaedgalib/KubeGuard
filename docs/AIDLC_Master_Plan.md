@@ -160,7 +160,7 @@ Notes: confirm guest kernel has BTF (needed in P5). Study alongside: Kubernetes 
 
 | Unit | Description | Acceptance check | Status |
 |---|---|---|---|
-| P2-U1 | Baseline scans: kube-bench and kubescape, before any change | Scores saved under `docs/reports/` | [ ] |
+| P2-U1 | Baseline scans: kube-bench and kubescape, before any change | Scores saved under `docs/reports/` | [x] |
 | P2-U2 | Fix CIS findings: kubelet auth, anonymous access, file perms, API server flags | Re-scan shows each fix | [ ] |
 | P2-U3 | RBAC audit to least privilege | Audit report, no wildcard roles outside system | [ ] |
 | P2-U4 | Pod Security Admission at restricted | Privileged pod rejected | [ ] |
