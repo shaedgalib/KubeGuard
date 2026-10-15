@@ -8,10 +8,10 @@ CILIUM_VERSION := $(strip $(CILIUM))
 GATEWAY_API_VERSION := $(strip $(GATEWAY_API))
 LOCAL_PATH_VERSION := $(strip $(LOCAL_PATH))
 KUBE_PROMETHEUS_STACK_VERSION := $(strip $(KUBE_PROMETHEUS_STACK))
-.PHONY: help isolated-network-up isolated-network-down isolated-network-test internet-network-up internet-network-down template-vm-create template-vm-snapshot template-vm-restore-test template-vm-destroy vms vms-status vms-test vms-isolate vms-attach-internet vms-snapshot vms-restore vms-destroy ansible-setup ansible-inventory ansible-apply ansible-test kubectl cilium-install cilium-status cilium-uninstall hubble-ui gateway-api-crds cilium-restart cilium-lb storage-install net-test-u6 sample-app-install sample-app-remove net-test-u8 vms-resize monitoring-secret monitoring-install monitoring-status monitoring-uninstall grafana-password grafana-ui net-test-u7
+.PHONY: help isolated-network-up isolated-network-down isolated-network-test internet-network-up internet-network-down template-vm-create template-vm-snapshot template-vm-restore-test template-vm-destroy vms vms-status vms-test vms-isolate vms-attach-internet vms-snapshot vms-restore vms-destroy ansible-setup ansible-inventory ansible-apply ansible-test kubectl cilium-install cilium-status cilium-uninstall hubble-ui gateway-api-crds cilium-restart cilium-lb storage-install net-test-u6 sample-app-install sample-app-remove net-test-u8 vms-resize monitoring-secret monitoring-install monitoring-status monitoring-uninstall grafana-password grafana-ui net-test-u7 etcd-snapshot etcd-restore drill-etcd
 
 help: ## List targets
-	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-28s %s\n", $$1, $$2}'
+	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-28s %s\n", $$1, $$2}'
 
 # Targets for up, down, reset and cluster are added in Phase 1.
 # Naming rules: docs/naming.md
@@ -172,3 +172,14 @@ grafana-ui: ## Port-forward Grafana to http://localhost:3000 (Ctrl+C to stop)
 
 net-test-u7: ## P1-U7 acceptance: targets scraped, Grafana healthy, dashboards loaded
 	PROJECT_KUBECONFIG=$(PROJECT_KUBECONFIG) k8s/monitoring/test.sh
+
+# P1-U9: etcd snapshot and restore (docs/runbooks/etcd-restore.md). Snapshots go to ~/.local/share/kubeguard/etcd-backups, outside git.
+etcd-snapshot: ## Take an etcd snapshot and copy it to the host (outside the repo)
+	PROJECT_KUBECONFIG=$(PROJECT_KUBECONFIG) infra/drills/etcd.sh snapshot
+
+etcd-restore: ## Restore etcd from a snapshot: make etcd-restore SNAPSHOT=<file>  (stops the API briefly)
+	@test -n "$(SNAPSHOT)" || { echo "usage: make etcd-restore SNAPSHOT=<file>"; exit 2; }
+	PROJECT_KUBECONFIG=$(PROJECT_KUBECONFIG) infra/drills/etcd.sh restore $(SNAPSHOT)
+
+drill-etcd: ## P1-U9 drill: snapshot, change state, restore, verify (run make vms-snapshot first)
+	PROJECT_KUBECONFIG=$(PROJECT_KUBECONFIG) infra/drills/etcd.sh drill
