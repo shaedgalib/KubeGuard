@@ -147,7 +147,7 @@ Each phase lists its units in dependency order. Unit IDs are stable references f
 | P1-U11 | `make up`, `make down`, `make reset`, `make cluster` | Clean VMs to Ready cluster with one command | `feat/p1-cluster-automation` | [x] |
 | P1-U12 | ADRs: CNI, load balancer, ingress, storage | 4 ADRs committed | `feat/p1-cluster-networking` | [x] |
 | P1-U13 | Rebuild time measured | Documented, target under 40 minutes | `feat/p1-cluster-automation` | [x] |
-| P1-U14 | Phase 2 spec | `docs/specs/P2-hardening.md` approved | `docs/p1-p2-spec` | [ ] |
+| P1-U14 | Phase 2 spec | `docs/specs/P2-security-hardening.md` approved | `docs/p1-p2-spec` | [x] |
 
 Branches: units are grouped into six feature branches (see `docs/specs/P1-cluster.md`).
 
@@ -156,7 +156,7 @@ Notes: confirm guest kernel has BTF (needed in P5). Study alongside: Kubernetes 
 ### P2: Security hardening
 
 **Intent:** Harden measurably, document each control, and create the baseline for attacks.
-**Spec:** `docs/specs/P2-hardening.md`
+**Spec:** `docs/specs/P2-security-hardening.md`
 
 | Unit | Description | Acceptance check | Status |
 |---|---|---|---|

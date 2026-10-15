@@ -126,7 +126,7 @@ Names follow [docs/naming.md](../naming.md). Accepted by the researcher on 2026-
 | P1-U11 | `make up`, `make down`, `make reset`, `make cluster` | Clean VMs to Ready cluster with one command | `feat/p1-cluster-automation` | [x] |
 | P1-U12 | ADRs: CNI, load balancer, ingress, storage | 4 ADRs committed | `feat/p1-cluster-networking` | [x] |
 | P1-U13 | Rebuild time measured | Documented, target under 40 minutes | `feat/p1-cluster-automation` | [x] |
-| P1-U14 | Phase 2 spec | `docs/specs/P2-hardening.md` approved | `docs/p1-p2-spec` | [ ] |
+| P1-U14 | Phase 2 spec | `docs/specs/P2-security-hardening.md` approved | `docs/p1-p2-spec` | [x] |
 
 ## Branches
 
@@ -162,7 +162,7 @@ Dependencies, deliverables and division of work. Core cluster setup is written b
 | P1-U11 | U1 to U8 | Makefile targets `up`, `down`, `reset`, `cluster` | Target semantics | Make glue, error handling |
 | P1-U12 | U5, U6 | `docs/adr/ADR-00x-*.md` (CNI, load balancer, ingress, storage) | Decisions | ADR drafts from the template |
 | P1-U13 | U11 | `docs/reports/P1-rebuild-time.md` | The measured runs | Report layout |
-| P1-U14 | U1 to U13 | `docs/specs/P2-hardening.md` | Hardening priorities | Draft from the master plan |
+| P1-U14 | U1 to U13 | `docs/specs/P2-security-hardening.md` | Hardening priorities | Draft from the master plan |
 
 Work order: U1 to U4, then U5, U6 and U8 together, then U7, U9 and U10, then U11, U12 and U13, then U14. Each unit ends at its acceptance check, with evidence under `docs/reports/` and a unit-details entry in this spec.
 
