@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # P1-U1: create, test, isolate, snapshot and destroy the cluster node VMs.
 # Usage: build-nodes.sh create | status | test | isolate | attach | resize | snapshot | restore | destroy
+# snapshot and restore use the restore point <name>-<SNAP>-snapshot; SNAP defaults to "clean" (SNAP=pre-u6 makes a second one).
 # Nodes are listed in nodes.conf. Names follow docs/naming.md.
 set -euo pipefail
 V="virsh -c qemu:///system"
@@ -12,6 +13,7 @@ KEY=${KG_LAB_KEY:-$HOME/.ssh/kubeguard-lab.pub}
 HERE=$(cd "$(dirname "$0")" && pwd)
 CI=$HERE/../cloud-init
 CONF=${NODES_CONF:-$HERE/nodes.conf}
+SNAP=${SNAP:-clean}
 
 rows() { grep -v '^[[:space:]]*#' "$CONF" | grep -v '^[[:space:]]*$'; }
 
@@ -179,17 +181,17 @@ snapshot() {
   while read -r name role ip imac emac vcpus mem disk; do $V shutdown "$name-vm" >/dev/null; done < <(rows)
   while read -r name role ip imac emac vcpus mem disk; do
     wait_off "$name-vm" || { echo "$name-vm did not shut down"; exit 1; }
-    $V snapshot-create-as "$name-vm" "$name-clean-snapshot" "clean node after creation"
+    $V snapshot-create-as "$name-vm" "$name-$SNAP-snapshot" "restore point: $SNAP"
   done < <(rows)
   while read -r name role ip imac emac vcpus mem disk; do $V start "$name-vm" >/dev/null; done < <(rows)
   while read -r name role ip imac emac vcpus mem disk; do wait_ssh "$ip" 300 && echo "back up: $name" || echo "NOT reachable: $name"; done < <(rows)
   wait_api
 }
 
-restore() {  # return every node to its <name>-clean-snapshot (also re-attaches internet0)
+restore() {  # return every node to its <name>-<SNAP>-snapshot (also re-attaches internet0)
   while read -r name role ip imac emac vcpus mem disk; do
     $V destroy "$name-vm" 2>/dev/null || true
-    $V snapshot-revert "$name-vm" "$name-clean-snapshot"
+    $V snapshot-revert "$name-vm" "$name-$SNAP-snapshot"
     $V start "$name-vm" >/dev/null
   done < <(rows)
   while read -r name role ip imac emac vcpus mem disk; do wait_ssh "$ip" 300 && echo "restored: $name" || echo "NOT reachable: $name"; done < <(rows)

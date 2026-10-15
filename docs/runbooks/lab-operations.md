@@ -289,6 +289,10 @@ Own runbook: [node-failure.md](node-failure.md). In short: `make drill-node-drai
 
 Own runbook: [rebuild.md](rebuild.md). In short: `make up`, `make down`, `make reset CONFIRM=yes`, `make cluster` and `make rebuild CONFIRM=yes` (reset plus cluster, timed).
 
+## 15. Baseline hardening (P2-U2, P2-U6)
+
+Own runbook: [hardening.md](hardening.md). In short: the `hardening` role is part of `make ansible-apply`; take `make vms-snapshot SNAP=pre-u2` and `make etcd-snapshot` first, then `make ansible-apply ANSIBLE_ARGS="-e hardening_audit_enabled=false -e hardening_encryption_enabled=false"` (U2) and later `make ansible-apply` (U6). Check with `make test-hardening`, scan with `make scan LABEL=<name>`, compare with `make scan-compare`. Scan output and encryption key copies stay outside the repository (`~/.local/share/kubeguard/`).
+
 ## Troubleshooting
 
 | Symptom | Check |
