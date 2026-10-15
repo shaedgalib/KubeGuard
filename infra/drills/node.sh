@@ -38,6 +38,16 @@ deployments_ok() { api_ok && [ -z "$(k get deployments -A --no-headers 2>/dev/nu
 cilium_ready()  { [ "$(k -n kube-system get pods -l k8s-app=cilium --field-selector "spec.nodeName=$1" -o jsonpath='{.items[0].status.containerStatuses[0].ready}' 2>/dev/null)" = true ]; }
 pods_ok()       { api_ok && [ -z "$(k get pods -A --no-headers 2>/dev/null | awk '$4!="Running" && $4!="Completed"')" ]; }
 
+# With serverTLSBootstrap (P2-U2) a rejoined kubelet asks the cluster CA for its serving certificate and nothing
+# approves the request on its own. Approve only this node's own pending request, then check that the API server
+# can reach the kubelet. On a cluster without the bootstrap there is no request and the check alone decides.
+kubelet_reachable() {
+  k get csr -o jsonpath='{range .items[?(@.spec.signerName=="kubernetes.io/kubelet-serving")]}{.metadata.name} {.spec.username} {.status.conditions[*].type}{"\n"}{end}' 2>/dev/null \
+    | awk -v u="system:node:$NODE" '$2 == u && NF == 2 {print $1}' \
+    | xargs -r env -u KUBECONFIG kubectl --kubeconfig "$KC" certificate approve >/dev/null 2>&1
+  [ "$(k get --raw "/api/v1/nodes/$NODE/proxy/healthz" 2>/dev/null)" = ok ]
+}
+
 pods_on_node() {  # workload pods (not DaemonSet pods) on a node, as namespace/name
   k get pods -A --field-selector "spec.nodeName=$1" -o json | python3 -c '
 import sys, json
@@ -115,6 +125,9 @@ drill_rejoin() {
   if ssh_n "$ip" "sudo $join --node-name $NODE --cri-socket unix:///run/containerd/containerd.sock" >/dev/null 2>&1; then ok "kubeadm join finished"; else bad "kubeadm join failed"; fi
   local tj=$SECONDS
   wait_until 300 node_ready "$NODE" && ok "node Ready $(( SECONDS - tj )) s after the join" || bad "node not Ready within 300 s"
+  wait_until 300 kubelet_reachable "$NODE" && ok "API server reaches the kubelet on $NODE $(( SECONDS - tj )) s after the join (serving certificate approved when requested)" \
+    || bad "API server cannot reach the kubelet on $NODE within 300 s (serving certificate request pending?)"
+  info "kubeadm join rewrites /var/lib/kubelet/config.yaml with mode 644; run 'make ansible-apply ANSIBLE_ARGS=\"--limit $NODE\"' to restore the hardened file modes"
   wait_until 600 cilium_ready "$NODE" && ok "Cilium agent on $NODE ready $(( SECONDS - tj )) s after the join" || bad "Cilium agent on $NODE not ready within 600 s"
   k uncordon "$NODE" >/dev/null 2>&1 || true
   local addr; addr=$(k get node "$NODE" -o jsonpath='{.status.addresses[?(@.type=="InternalIP")].address}')
