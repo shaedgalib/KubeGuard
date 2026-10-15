@@ -95,7 +95,7 @@
 # Secret makes the API server store it again through the first provider (secretbox). The API server
 # sees the old copy was read through "identity", so it writes even when nothing else changed.
 - name: Re-encrypt the existing Secrets
-  when: hardening_encryption_enabled
+  when: hardening_encryption_enabled | bool
   block:
     - name: Read the checksum of the encryption configuration
       ansible.builtin.stat:

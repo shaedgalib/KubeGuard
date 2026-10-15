@@ -10,8 +10,8 @@
     mode: "0700"
   loop: >-
     {{ [hardening_auth_dir]
-       + ([hardening_audit_dir, hardening_audit_log_dir] if hardening_audit_enabled else [])
-       + ([hardening_encryption_dir] if hardening_encryption_enabled else []) }}
+       + ([hardening_audit_dir, hardening_audit_log_dir] if hardening_audit_enabled | bool else [])
+       + ([hardening_encryption_dir] if hardening_encryption_enabled | bool else []) }}
 
 - name: Limit anonymous requests to the health endpoints (CIS 1.2.1)
   ansible.builtin.copy:
@@ -28,10 +28,10 @@
     owner: root
     group: root
     mode: "0600"
-  when: hardening_audit_enabled
+  when: hardening_audit_enabled | bool
 
 - name: Set up encryption of Secrets at rest
-  when: hardening_encryption_enabled
+  when: hardening_encryption_enabled | bool
   block:
     - name: Check whether the encryption configuration exists
       ansible.builtin.stat:

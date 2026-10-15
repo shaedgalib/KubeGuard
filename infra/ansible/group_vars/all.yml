@@ -40,6 +40,8 @@ kubernetes_cluster_name: "kubeguard"
 
 # Hardening (P2-U2, P2-U6). One place for the settings that the kubeadm configuration, the
 # hardening role and the tests share. Decisions and reasons: docs/reports/P2-U2-cis-fixes.md.
+# The two switches can be set on the command line (-e hardening_audit_enabled=false). Such values are strings,
+# so every use converts them with | bool; a plain "if switch" would treat the string "false" as true.
 hardening_audit_enabled: true        # P2-U6: API audit log with rotation
 hardening_encryption_enabled: true   # P2-U6: Secrets encrypted in etcd
 
@@ -95,9 +97,9 @@ hardening_apiserver_volumes_encryption:
 # Lists the kubeadm template and the checks use (the toggles above decide what is included).
 hardening_apiserver_args: >-
   {{ hardening_apiserver_args_base
-     + (hardening_apiserver_args_audit if hardening_audit_enabled else [])
-     + (hardening_apiserver_args_encryption if hardening_encryption_enabled else []) }}
+     + (hardening_apiserver_args_audit if hardening_audit_enabled | bool else [])
+     + (hardening_apiserver_args_encryption if hardening_encryption_enabled | bool else []) }}
 hardening_apiserver_volumes: >-
   {{ hardening_apiserver_volumes_base
-     + (hardening_apiserver_volumes_audit if hardening_audit_enabled else [])
-     + (hardening_apiserver_volumes_encryption if hardening_encryption_enabled else []) }}
+     + (hardening_apiserver_volumes_audit if hardening_audit_enabled | bool else [])
+     + (hardening_apiserver_volumes_encryption if hardening_encryption_enabled | bool else []) }}
