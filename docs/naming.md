@@ -11,7 +11,7 @@ Every object created for the lab carries the prefix `kg` (KubeGuard) and ends in
 | `vm` | A virtual machine (libvirt domain) | `kg-template-vm` |
 | `disk` | The disk file of one VM | `kg-template-disk.qcow2` |
 | `seed` | The cloud-init configuration disk used on first boot | `kg-control-1-seed.iso` |
-| `snapshot` | A saved restore point of a VM | `kg-template-clean-snapshot` |
+| `snapshot` | A saved restore point of a VM. Extra restore points carry a label: `<vm name>-<label>-snapshot` | `kg-template-clean-snapshot`, `kg-control-1-pre-u6-snapshot` |
 | `storage-pool` | The libvirt folder holding disks and seeds | `kg-storage-pool` |
 
 ## Role words

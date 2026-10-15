@@ -1,0 +1,100 @@
+# API server audit policy (P2-U6, decision H9). Rules are checked in order; the first match sets the level.
+# The log is also an input for Phase 4, so routine noise is dropped and security-relevant events are kept:
+# who changed workloads, RBAC, policies, webhooks and certificate requests, who read Secrets, who ran
+# exec, and every denied request. Secrets, tokens and ConfigMaps are never logged above Metadata, so the
+# log holds no secret values. Volume is watched with make audit-log-size.
+apiVersion: audit.k8s.io/v1
+kind: Policy
+omitStages:
+  - RequestReceived
+omitManagedFields: true
+rules:
+  # 1. Health, metrics and discovery requests: high volume, no security value.
+  - level: None
+    nonResourceURLs:
+      - /healthz*
+      - /livez*
+      - /readyz*
+      - /version
+      - /metrics
+      - /openapi*
+      - /api
+      - /api/*
+      - /apis
+      - /apis/*
+
+  # 2. Secrets, tokens and ConfigMaps: who touched them, never what they contain.
+  - level: Metadata
+    resources:
+      - group: ""
+        resources: ["secrets", "configmaps", "serviceaccounts/token"]
+      - group: authentication.k8s.io
+        resources: ["tokenreviews"]
+
+  # 3. Routine traffic from the cluster's own components.
+  - level: None
+    resources:
+      - group: coordination.k8s.io
+        resources: ["leases"]
+  - level: None
+    userGroups: ["system:nodes"]
+    verbs: ["get", "patch", "update"]
+    resources:
+      - group: ""
+        resources: ["nodes", "nodes/status", "pods", "pods/status"]
+  - level: None
+    users: ["system:apiserver"]
+    verbs: ["get", "list", "watch"]
+  - level: None
+    users: ["system:kube-controller-manager", "system:kube-scheduler"]
+    verbs: ["get", "list", "watch"]
+  - level: None
+    users:
+      - system:serviceaccount:kube-system:cilium
+      - system:serviceaccount:kube-system:cilium-operator
+    resources:
+      - group: cilium.io
+        resources:
+          - ciliumendpoints
+          - ciliumendpoints/status
+          - ciliumendpointslices
+          - ciliumidentities
+          - ciliumnodes
+          - ciliumnodes/status
+  - level: None
+    users: ["system:serviceaccount:kube-system:endpointslicemirroring-controller", "system:serviceaccount:kube-system:endpointslice-controller", "system:serviceaccount:kube-system:endpoint-controller"]
+    resources:
+      - group: ""
+        resources: ["endpoints"]
+      - group: discovery.k8s.io
+        resources: ["endpointslices"]
+  - level: None
+    resources:
+      - group: ""
+        resources: ["events"]
+      - group: events.k8s.io
+
+  # 4. Changes that matter for security: the request body is kept (pod specs, roles, policies).
+  - level: Request
+    verbs: ["create", "update", "patch", "delete", "deletecollection"]
+    resources:
+      - group: ""
+        resources: ["pods", "serviceaccounts", "namespaces", "services", "persistentvolumes"]
+      - group: apps
+        resources: ["deployments", "daemonsets", "statefulsets", "replicasets"]
+      - group: batch
+        resources: ["jobs", "cronjobs"]
+      - group: rbac.authorization.k8s.io
+      - group: networking.k8s.io
+        resources: ["networkpolicies", "ingresses"]
+      - group: cilium.io
+        resources: ["ciliumnetworkpolicies", "ciliumclusterwidenetworkpolicies"]
+      - group: admissionregistration.k8s.io
+      - group: apiextensions.k8s.io
+      - group: certificates.k8s.io
+      - group: gateway.networking.k8s.io
+      - group: kyverno.io
+      - group: policy.networking.k8s.io
+
+  # 5. Everything else: who, what, when, from where, and the result.
+  - level: Metadata

@@ -17,10 +17,32 @@
     group: root
     mode: "0644"
 
+- name: Check that kubeadm accepts the configuration
+  ansible.builtin.command: kubeadm config validate --config /etc/kubeadm/kubeadm-config.yaml
+  changed_when: false
+
+- name: Read the checksum of the kubeadm configuration
+  ansible.builtin.stat:
+    path: /etc/kubeadm/kubeadm-config.yaml
+    checksum_algorithm: sha256
+  register: kubeadm_init_config
+
 - name: Initialise the control plane
   ansible.builtin.command: kubeadm init --config /etc/kubeadm/kubeadm-config.yaml
   args:
     creates: /etc/kubernetes/admin.conf
+  register: kubeadm_init_run
+
+# The hardening role regenerates the control-plane manifests when this checksum differs from the
+# configuration file, so a cluster built from this configuration needs no second pass.
+- name: Record the configuration the control plane was built from
+  ansible.builtin.copy:
+    content: "{{ kubeadm_init_config.stat.checksum }}\n"
+    dest: /etc/kubeadm/applied-config.sha256
+    owner: root
+    group: root
+    mode: "0644"
+  when: kubeadm_init_run is changed
 
 - name: Wait until the API server is ready
   ansible.builtin.uri:

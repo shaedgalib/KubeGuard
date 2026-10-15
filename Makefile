@@ -8,7 +8,7 @@ CILIUM_VERSION := $(strip $(CILIUM))
 GATEWAY_API_VERSION := $(strip $(GATEWAY_API))
 LOCAL_PATH_VERSION := $(strip $(LOCAL_PATH))
 KUBE_PROMETHEUS_STACK_VERSION := $(strip $(KUBE_PROMETHEUS_STACK))
-.PHONY: help isolated-network-up isolated-network-down isolated-network-test internet-network-up internet-network-down template-vm-create template-vm-snapshot template-vm-restore-test template-vm-destroy vms vms-status vms-test vms-isolate vms-attach-internet vms-snapshot vms-restore vms-destroy ansible-setup ansible-inventory ansible-apply ansible-test kubectl cilium-install cilium-status cilium-uninstall hubble-ui gateway-api-crds cilium-restart cilium-lb storage-install net-test-u6 sample-app-install sample-app-remove net-test-u8 vms-resize monitoring-secret monitoring-install monitoring-status monitoring-uninstall grafana-password grafana-ui net-test-u7 etcd-snapshot etcd-restore drill-etcd drill-node-drain drill-node-fail drill-node-rejoin up down reset cluster rebuild
+.PHONY: help isolated-network-up isolated-network-down isolated-network-test internet-network-up internet-network-down template-vm-create template-vm-snapshot template-vm-restore-test template-vm-destroy vms vms-status vms-test vms-isolate vms-attach-internet vms-snapshot vms-restore vms-destroy ansible-setup ansible-inventory ansible-apply ansible-test kubectl cilium-install cilium-status cilium-uninstall hubble-ui gateway-api-crds cilium-restart cilium-lb storage-install net-test-u6 sample-app-install sample-app-remove net-test-u8 vms-resize monitoring-secret monitoring-install monitoring-status monitoring-uninstall grafana-password grafana-ui net-test-u7 etcd-snapshot etcd-restore drill-etcd drill-node-drain drill-node-fail drill-node-rejoin up down reset cluster rebuild kubescape-install scan scan-summary scan-compare test-hardening hardening-evidence audit-log-size
 
 help: ## List targets
 	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-28s %s\n", $$1, $$2}'
@@ -69,11 +69,11 @@ vms-attach-internet: ## Give every node VM its internet interface back (build wi
 vms-resize: ## Apply the memory sizes in nodes.conf to the existing node VMs (restarts one node at a time)
 	infra/libvirt/build-nodes.sh resize
 
-vms-snapshot: ## Snapshot each node VM as <name>-clean-snapshot
-	infra/libvirt/build-nodes.sh snapshot
+vms-snapshot: ## Snapshot each node VM as <name>-clean-snapshot (SNAP=<label> for another restore point)
+	SNAP=$(or $(SNAP),clean) infra/libvirt/build-nodes.sh snapshot
 
-vms-restore: ## Return every node VM to its clean snapshot (re-attaches the internet interface)
-	infra/libvirt/build-nodes.sh restore
+vms-restore: ## Return every node VM to its clean snapshot, or to SNAP=<label> (re-attaches the internet interface)
+	SNAP=$(or $(SNAP),clean) infra/libvirt/build-nodes.sh restore
 
 vms-destroy: ## Remove the node VMs, their disks and seeds
 	infra/libvirt/build-nodes.sh destroy
@@ -86,8 +86,8 @@ ansible-setup: ## Create .venv and install the pinned Ansible
 ansible-inventory: ## Generate the Ansible inventory from infra/libvirt/nodes.conf
 	infra/ansible/gen-inventory.sh
 
-ansible-apply: ansible-inventory ## Apply all node roles (common, containerd) to all nodes
-	cd infra/ansible && ../../.venv/bin/ansible-playbook site.yml
+ansible-apply: ansible-inventory ## Apply all node roles to all nodes; extra options via ANSIBLE_ARGS, for example ANSIBLE_ARGS="-e hardening_audit_enabled=false"
+	cd infra/ansible && ../../.venv/bin/ansible-playbook site.yml $(ANSIBLE_ARGS)
 
 ansible-test: ## Run the playbook twice; the second run must change nothing
 	infra/ansible/test-idempotence.sh
@@ -210,3 +210,29 @@ cluster: ## From clean VMs to the full cluster (Kubernetes, Cilium, load balance
 
 rebuild: ## reset + cluster with total time against the 40 minute target (CONFIRM=yes required)
 	CONFIRM=$(CONFIRM) infra/cluster.sh rebuild
+
+# P2-U1: security scanners (infra/scans/). Raw output goes to ~/.local/share/kubeguard/scans, outside git.
+# kube-bench needs its image on the nodes: run "make vms-attach-internet" first while the build window is open.
+kubescape-install: ## Install the pinned kubescape CLI into ~/.local/bin (checksum verified)
+	infra/scans/install-kubescape.sh
+
+scan: ## Run kube-bench and kubescape, read-only: make scan LABEL=baseline [WHAT=all|kube-bench|kubescape]
+	@test -n "$(LABEL)" || { echo "usage: make scan LABEL=<name> [WHAT=all|kube-bench|kubescape]"; exit 2; }
+	PROJECT_KUBECONFIG=$(PROJECT_KUBECONFIG) infra/scans/run.sh $(LABEL) $(or $(WHAT),all)
+
+scan-summary: ## Print the scores of a saved scan as markdown: make scan-summary [DIR=<scan dir>] (default: the latest)
+	infra/scans/summarize.py $(DIR)
+
+scan-compare: ## Show what changed between two saved scans: make scan-compare BEFORE=<dir> AFTER=<dir>
+	@test -n "$(BEFORE)" -a -n "$(AFTER)" || { echo "usage: make scan-compare BEFORE=<scan dir> AFTER=<scan dir>"; exit 2; }
+	infra/scans/summarize.py --compare $(BEFORE) $(AFTER)
+
+# P2-U2 / P2-U6: tests of the hardening controls (infra/hardening/test.sh). P2-U10 makes this the one command for all controls.
+test-hardening: ## Run the hardening tests, all or one: make test-hardening [CONTROL=anonymous|external-ips|profiling|files|kubelet-tls|tls|pid-limit|seccomp|etcd-encryption|audit]
+	PROJECT_KUBECONFIG=$(PROJECT_KUBECONFIG) infra/hardening/test.sh $(or $(CONTROL),all)
+
+hardening-evidence: ## P2-U6: read-only evidence for encryption at rest and the audit log (no secret values are printed)
+	infra/hardening/evidence.sh
+
+audit-log-size: ## Show the size and files of the API audit log on the control-plane node
+	@ssh -n -i $(HOME)/.ssh/kubeguard-lab -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR ubuntu@10.77.0.10 'sudo du -sh /var/log/kubernetes/audit; sudo ls -la /var/log/kubernetes/audit; df -h /var/log | tail -1'

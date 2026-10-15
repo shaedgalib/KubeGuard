@@ -1,0 +1,97 @@
+# Role hardening: CIS fixes for a kubeadm node (P2-U2). Files that must exist before "kubeadm init"
+# are created by prepare.yml; the control-plane flags live in the kubeadm configuration and are
+# applied to a running cluster by controlplane.yml. Every task is written so that a second run
+# reports no change. Reasons for each fix: docs/reports/P2-U2-cis-fixes.md.
+
+- name: Restrict the kubelet service files to root (CIS 4.1.1)
+  ansible.builtin.file:
+    path: "{{ item }}"
+    owner: root
+    group: root
+    mode: "0600"
+  loop:
+    - /usr/lib/systemd/system/kubelet.service
+    - /usr/lib/systemd/system/kubelet.service.d/10-kubeadm.conf
+
+- name: Create the etcd system user (CIS 1.1.12)
+  ansible.builtin.user:
+    name: etcd
+    system: true
+    shell: /usr/sbin/nologin
+    create_home: false
+  when: inventory_hostname in groups['control']
+
+- name: Give the etcd data directory to that user (CIS 1.1.12)
+  ansible.builtin.file:
+    path: /var/lib/etcd
+    state: directory
+    owner: etcd
+    group: etcd
+    mode: "0700"
+  when: inventory_hostname in groups['control']
+
+- name: Read the kubelet configuration
+  ansible.builtin.slurp:
+    src: /var/lib/kubelet/config.yaml
+  register: hardening_kubelet_file
+
+- name: Work out the hardened kubelet configuration
+  ansible.builtin.set_fact:
+    hardening_kubelet_current: "{{ hardening_kubelet_file.content | b64decode | from_yaml }}"
+    hardening_kubelet_wanted: "{{ hardening_kubelet_file.content | b64decode | from_yaml | combine(hardening_kubelet_settings, recursive=True) }}"
+
+# The old file is kept next to the new one (a copy named config.yaml.<id>.<date>~) so a bad
+# setting can be undone by hand. The kubelet restarts only when the content changed.
+- name: Write the hardened kubelet configuration (serving certificate, PID limit, seccomp, TLS)
+  ansible.builtin.copy:
+    content: "{{ hardening_kubelet_wanted | to_nice_yaml(indent=2) }}"
+    dest: /var/lib/kubelet/config.yaml
+    owner: root
+    group: root
+    mode: "0600"
+    backup: true
+  when: hardening_kubelet_wanted != hardening_kubelet_current
+  notify: Restart kubelet
+
+- name: Restrict the kubelet configuration file to root (CIS 4.1.9)
+  ansible.builtin.file:
+    path: /var/lib/kubelet/config.yaml
+    owner: root
+    group: root
+    mode: "0600"
+
+- name: Apply the kubelet configuration now
+  ansible.builtin.meta: flush_handlers
+
+# Not "node Ready": on a new cluster this runs before Cilium is installed, when nodes are NotReady.
+- name: Wait until the kubelet is healthy
+  ansible.builtin.uri:
+    url: http://127.0.0.1:10248/healthz
+  register: hardening_kubelet_health
+  until: hardening_kubelet_health.status == 200
+  retries: 36
+  delay: 5
+  changed_when: false
+
+# With serverTLSBootstrap the kubelet asks the cluster CA for its serving certificate. Nothing
+# approves these requests automatically, so the role does: only requests from this node's own
+# identity (system:node:<name>) for the kubelet-serving signer, and it then checks that the kubelet
+# really serves a certificate that chains to the cluster CA for the node's address. The API server
+# flag --kubelet-certificate-authority is switched on later, once every node passes this check.
+- name: Approve this node's kubelet serving certificate request and wait for the certificate
+  ansible.builtin.shell: |
+    set -o pipefail
+    kc="kubectl --kubeconfig /etc/kubernetes/admin.conf"
+    $kc get csr -o jsonpath='{range .items[?(@.spec.signerName=="kubernetes.io/kubelet-serving")]}{.metadata.name} {.spec.username} {.status.conditions[*].type}{"\n"}{end}' \
+      | awk -v u='system:node:{{ inventory_hostname }}' '$2 == u && NF == 2 {print $1}' \
+      | xargs -r $kc certificate approve
+    openssl s_client -connect {{ ansible_host }}:10250 -CAfile /etc/kubernetes/pki/ca.crt \
+      -verify_return_error -verify_ip {{ ansible_host }} </dev/null 2>&1 | grep 'Verify return code: 0 (ok)' >/dev/null
+  args:
+    executable: /bin/bash
+  delegate_to: "{{ groups['control'][0] }}"
+  register: hardening_kubelet_cert
+  until: hardening_kubelet_cert.rc == 0
+  retries: 36
+  delay: 5
+  changed_when: "'approved' in hardening_kubelet_cert.stdout"

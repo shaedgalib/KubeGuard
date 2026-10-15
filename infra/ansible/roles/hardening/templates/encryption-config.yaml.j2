@@ -1,0 +1,16 @@
+# Managed by Ansible (role hardening). Mode 0600. Secrets are stored in etcd encrypted with secretbox
+# (XSalsa20 and Poly1305). The identity provider stays last so that data written before encryption
+# was switched on can still be read; the role rewrites every Secret so none stays unencrypted.
+# The key is generated once on this node. A copy is kept on the host outside the repository: without
+# it the Secrets in an etcd snapshot cannot be read (docs/runbooks/hardening.md).
+apiVersion: apiserver.config.k8s.io/v1
+kind: EncryptionConfiguration
+resources:
+  - resources:
+      - secrets
+    providers:
+      - secretbox:
+          keys:
+            - name: key1
+              secret: {{ hardening_encryption_key }}
+      - identity: {}

@@ -1,0 +1,145 @@
+# Control node, after every node is hardened: bring the running control plane in line with the kubeadm
+# configuration (P2-U2, P2-U6). On a cluster that was just built from that configuration nothing
+# differs and this file only checks. The checksum of the configuration the control plane was last
+# built from is kept in /etc/kubeadm/applied-config.sha256.
+
+- name: Read the checksum of the kubeadm configuration
+  ansible.builtin.stat:
+    path: /etc/kubeadm/kubeadm-config.yaml
+    checksum_algorithm: sha256
+  register: hardening_config
+
+- name: Read the checksum the control plane was built from
+  ansible.builtin.slurp:
+    src: /etc/kubeadm/applied-config.sha256
+  register: hardening_applied
+  failed_when: false
+
+- name: Decide whether the control plane must be regenerated
+  ansible.builtin.set_fact:
+    hardening_cp_stale: "{{ (hardening_applied.content | default('') | b64decode | trim) != hardening_config.stat.checksum }}"
+
+- name: Regenerate the control plane from the kubeadm configuration
+  when: hardening_cp_stale
+  block:
+    - name: Create the backup directory for the static pod manifests
+      ansible.builtin.file:
+        path: /var/backups/kubeguard
+        state: directory
+        owner: root
+        group: root
+        mode: "0700"
+
+    - name: Check that kubeadm accepts the configuration (dry run, the manifests go to a scratch directory)
+      ansible.builtin.command: kubeadm init phase control-plane all --config /etc/kubeadm/kubeadm-config.yaml --dry-run
+      environment:
+        KUBEADM_INIT_DRYRUN_DIR: /var/backups/kubeguard/dry-run
+      changed_when: false
+
+    - name: Remove the dry-run output
+      ansible.builtin.file:
+        path: /var/backups/kubeguard/dry-run
+        state: absent
+      changed_when: false
+
+    # Outside /etc/kubernetes/manifests: the kubelet would start anything it finds there.
+    - name: Keep a copy of the current static pod manifests (restore them by hand if the API server fails to start)
+      ansible.builtin.command: cp -a /etc/kubernetes/manifests /var/backups/kubeguard/manifests-{{ ansible_date_time.epoch }}
+      args:
+        creates: /var/backups/kubeguard/manifests-{{ ansible_date_time.epoch }}
+
+    - name: Regenerate the control-plane manifests (the kubelet restarts the API server, controller manager and scheduler)
+      ansible.builtin.command: kubeadm init phase control-plane all --config /etc/kubeadm/kubeadm-config.yaml
+
+    - name: Wait until the running API server uses the hardened flags
+      ansible.builtin.shell: |
+        args=$(pgrep -af '^kube-apiserver') || exit 1
+        {% for arg in hardening_apiserver_args %}
+        grep -qF -- '--{{ arg.name }}={{ arg.value }}' <<<"$args" || exit 1
+        {% endfor %}
+        pgrep -af '^kube-controller-manager' | grep -qF -- '--profiling=false' || exit 1
+        pgrep -af '^kube-scheduler' | grep -qF -- '--profiling=false' || exit 1
+      args:
+        executable: /bin/bash
+      register: hardening_flags
+      until: hardening_flags.rc == 0
+      retries: 36
+      delay: 5
+      changed_when: false
+
+    - name: Wait until the API server answers
+      ansible.builtin.command: kubectl --kubeconfig /etc/kubernetes/admin.conf get --raw /readyz
+      register: hardening_ready
+      until: hardening_ready.rc == 0
+      retries: 36
+      delay: 5
+      changed_when: false
+
+    # Keeps the cluster's stored configuration equal to the file, so a later "kubeadm upgrade" or a
+    # node that joins keeps the hardened settings.
+    - name: Store the kubeadm configuration in the cluster
+      ansible.builtin.command: kubeadm init phase upload-config kubeadm --config /etc/kubeadm/kubeadm-config.yaml
+
+    - name: Store the kubelet configuration in the cluster (used by nodes that join later)
+      ansible.builtin.command: kubeadm init phase upload-config kubelet --config /etc/kubeadm/kubeadm-config.yaml
+
+    - name: Record the configuration the control plane now runs
+      ansible.builtin.copy:
+        content: "{{ hardening_config.stat.checksum }}\n"
+        dest: /etc/kubeadm/applied-config.sha256
+        owner: root
+        group: root
+        mode: "0644"
+
+# Secrets written before encryption was switched on are still plaintext in etcd. Replacing every
+# Secret makes the API server store it again through the first provider (secretbox). The API server
+# sees the old copy was read through "identity", so it writes even when nothing else changed.
+- name: Re-encrypt the existing Secrets
+  when: hardening_encryption_enabled | bool
+  block:
+    - name: Read the checksum of the encryption configuration
+      ansible.builtin.stat:
+        path: "{{ hardening_encryption_dir }}/encryption-config.yaml"
+        checksum_algorithm: sha256
+      register: hardening_encryption_sum
+
+    - name: Read the checksum Secrets were last re-encrypted with
+      ansible.builtin.slurp:
+        src: /etc/kubeadm/secrets-encrypted.sha256
+      register: hardening_secrets_done
+      failed_when: false
+
+    - name: Rewrite every Secret so that it is stored encrypted
+      ansible.builtin.shell: |
+        set -o pipefail
+        kc="kubectl --kubeconfig /etc/kubernetes/admin.conf"
+        $kc get secrets --all-namespaces -o json | $kc replace -f - | wc -l
+      args:
+        executable: /bin/bash
+      register: hardening_reencrypt
+      no_log: true
+      when: (hardening_secrets_done.content | default('') | b64decode | trim) != hardening_encryption_sum.stat.checksum
+
+    - name: Record the encryption configuration the Secrets were re-encrypted with
+      ansible.builtin.copy:
+        content: "{{ hardening_encryption_sum.stat.checksum }}\n"
+        dest: /etc/kubeadm/secrets-encrypted.sha256
+        owner: root
+        group: root
+        mode: "0644"
+      when: hardening_reencrypt is changed
+
+# Checks: the role fails if the control plane does not end up as intended.
+- name: Check that an anonymous request outside the health endpoints is refused
+  ansible.builtin.uri:
+    url: "https://{{ ansible_host }}:6443/version"
+    validate_certs: false
+    status_code: 401
+  changed_when: false
+
+- name: Check that an anonymous request to a health endpoint is still accepted
+  ansible.builtin.uri:
+    url: "https://{{ ansible_host }}:6443/readyz"
+    validate_certs: false
+    status_code: 200
+  changed_when: false

@@ -44,9 +44,9 @@ By hand: `virsh -c qemu:///system destroy <node>-vm`, watch `kubectl get nodes -
 make drill-node-rejoin NODE=kg-worker-2
 ```
 
-Drains the node, deletes it from the cluster, runs `kubeadm reset -f` on it, removes `/etc/cni/net.d` and reboots it (so no old network state remains), creates a new join command on the control plane (`kubeadm token create --ttl 15m --print-join-command`), joins the node with the same node name and CRI socket as the Ansible role, and waits until it is `Ready`, its Cilium agent is ready, it has its isolated-network address and all pods are `Running` (up to 10 minutes).
+Drains the node, deletes it from the cluster, runs `kubeadm reset -f` on it, removes `/etc/cni/net.d` and reboots it (so no old network state remains), creates a new join command on the control plane (`kubeadm token create --ttl 15m --print-join-command`), joins the node with the same node name and CRI socket as the Ansible role, and waits until it is `Ready`, the API server can reach its kubelet (the drill approves the node's own kubelet serving-certificate request, see [hardening.md](hardening.md)), its Cilium agent is ready, it has its isolated-network address and all pods are `Running` (up to 10 minutes).
 
-By hand: the same commands in that order. The kubelet node address comes from `/etc/default/kubelet` (`--node-ip`), which `kubeadm reset` does not remove.
+By hand: the same commands in that order, plus `kubectl certificate approve` for the node's own `kubernetes.io/kubelet-serving` request. `kubeadm join` also writes `/var/lib/kubelet/config.yaml` with mode 644; `make ansible-apply ANSIBLE_ARGS="--limit <node>"` sets the hardened modes again. The kubelet node address comes from `/etc/default/kubelet` (`--node-ip`), which `kubeadm reset` does not remove.
 
 ## If a drill leaves the cluster in a bad state
 

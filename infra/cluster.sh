@@ -5,7 +5,8 @@
 #   down     shut the node VMs down gracefully (frees their RAM; networks and disks stay)
 #   reset    DESTROY the node VMs and create fresh ones from kg-template-vm (needs CONFIRM=yes)
 #   cluster  from clean VMs to the full cluster: Kubernetes, Cilium, load balancer, Gateway API,
-#            storage, monitoring, sample app, and the acceptance checks of U5 to U8
+#            storage, monitoring, sample app, the acceptance checks of U5 to U8 and the hardening
+#            tests of Phase 2 (the hardening itself is part of the Ansible stage)
 #   rebuild  reset + cluster, and the total time against the 40 minute target (needs CONFIRM=yes)
 # Every stage prints its own duration; the log is kept outside the repository.
 set -uo pipefail
@@ -128,6 +129,7 @@ do_cluster() {
   stage "check: load balancer and Gateway answer from the host" check_lb_and_gateway
   stage "check: monitoring (U7)"  make net-test-u7
   stage "check: sample app and Hubble flows (U8)" make net-test-u8
+  stage "check: hardening (P2)"   make test-hardening
   summary
 }
 

@@ -1,4 +1,5 @@
-# Managed by Ansible (role kubeadm_init). Settings follow design decisions D3 and the P1 spec.
+# Managed by Ansible (role kubeadm_init). Settings follow design decisions D3 and the P1 spec;
+# the hardening settings come from group_vars/all.yml (P2-U2, P2-U6, decision H3).
 apiVersion: kubeadm.k8s.io/v1beta4
 kind: InitConfiguration
 localAPIEndpoint:
@@ -20,8 +21,31 @@ networking:
   podSubnet: {{ kubernetes_pod_cidr }}
   serviceSubnet: {{ kubernetes_service_cidr }}
   dnsDomain: cluster.local
+apiServer:
+  extraArgs:
+{% for arg in hardening_apiserver_args %}
+    - name: {{ arg.name }}
+      value: "{{ arg.value }}"
+{% endfor %}
+  extraVolumes:
+{% for vol in hardening_apiserver_volumes %}
+    - name: {{ vol.name }}
+      hostPath: {{ vol.path }}
+      mountPath: {{ vol.path }}
+      readOnly: {{ vol.read_only | lower }}
+      pathType: DirectoryOrCreate
+{% endfor %}
+controllerManager:
+  extraArgs:
+    - name: profiling
+      value: "false"
+scheduler:
+  extraArgs:
+    - name: profiling
+      value: "false"
 ---
 apiVersion: kubelet.config.k8s.io/v1beta1
 kind: KubeletConfiguration
 # Must match the cgroup driver of containerd (role containerd).
 cgroupDriver: systemd
+{{ hardening_kubelet_settings | to_nice_yaml(indent=2) }}
