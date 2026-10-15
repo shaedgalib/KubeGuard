@@ -126,7 +126,7 @@ Names follow [docs/naming.md](../naming.md). Accepted by the researcher on 2026-
 | P1-U11 | `make up`, `make down`, `make reset`, `make cluster` | Clean VMs to Ready cluster with one command | `feat/p1-cluster-automation` | [x] |
 | P1-U12 | ADRs: CNI, load balancer, ingress, storage | 4 ADRs committed | `feat/p1-cluster-networking` | [x] |
 | P1-U13 | Rebuild time measured | Documented, target under 40 minutes | `feat/p1-cluster-automation` | [x] |
-| P1-U14 | Phase 2 spec | `docs/specs/P2-hardening.md` approved | `docs/p1-p2-spec` | [ ] |
+| P1-U14 | Phase 2 spec | `docs/specs/P2-security-hardening.md` approved | `docs/p1-p2-spec` | [x] |
 
 ## Branches
 
@@ -162,7 +162,7 @@ Dependencies, deliverables and division of work. Core cluster setup is written b
 | P1-U11 | U1 to U8 | Makefile targets `up`, `down`, `reset`, `cluster` | Target semantics | Make glue, error handling |
 | P1-U12 | U5, U6 | `docs/adr/ADR-00x-*.md` (CNI, load balancer, ingress, storage) | Decisions | ADR drafts from the template |
 | P1-U13 | U11 | `docs/reports/P1-rebuild-time.md` | The measured runs | Report layout |
-| P1-U14 | U1 to U13 | `docs/specs/P2-hardening.md` | Hardening priorities | Draft from the master plan |
+| P1-U14 | U1 to U13 | `docs/specs/P2-security-hardening.md` | Hardening priorities | Draft from the master plan |
 
 Work order: U1 to U4, then U5, U6 and U8 together, then U7, U9 and U10, then U11, U12 and U13, then U14. Each unit ends at its acceptance check, with evidence under `docs/reports/` and a unit-details entry in this spec.
 
@@ -470,7 +470,38 @@ Changes to the approved plan during Phase 1. One line each: date, decision numbe
 2026-10-10 | D8 | Kubernetes pinned to 1.36.5 (was 1.37.1) and `crictl` to 1.36.0 (was 1.37.0); Helm 4.3.0 installed on the host (was 3.16.3); the cluster was rebuilt | Cilium 1.20 lists Kubernetes 1.33 to 1.36 only, 1.37 is not covered; Helm 4.3.x supports Kubernetes 1.34 to 1.37 and Helm 3.16 does not cover 1.36; containerd 2.3.6 supports 1.36
 2026-10-14 | D4, D7 | Layer 4 load balancer is Cilium LB IPAM with L2 announcements (was MetalLB); layer 7 entry is Cilium Gateway API (was open between ingress-nginx and Gateway API); pool `10.77.0.200-220` unchanged | One component fewer, one observable data path; ingress-nginx is retired; see ADR-003 and ADR-004
 2026-10-14 | D1 | Node memory raised to 3 GiB (control plane) and 5 GiB (workers), from 2 GiB each; the plan sizes (4, 8, 8 GiB) were not used | Control plane had 803 MiB available; 4/8/8 GiB would leave the 32 GB host with little free memory; sized as a start, to be tuned from measured use
+2026-10-15 | workflow | The end-of-phase isolation step (`make vms-isolate` and the isolation tests) is not done at the end of Phase 1; the nodes stay in the build window (`internet0` attached). Isolation and its tests must be done before the first attack run in Phase 3 | Phase 2 installs scanners and policy components that need image pulls; the lab rule (attacks only on the isolated network) is unchanged
 
 ## Retrospective
 
-(Filled at phase exit.)
+Written at Phase 1 exit (2026-10-15) from the evidence reports and the amendments above. To be edited by the researcher.
+
+**Outcome.** All 14 units are done. The pass condition holds: from clean VMs, `make cluster` produces a Ready cluster with Hubble flows visible (P1-U11, U13), the etcd restore was tested (P1-U9), and the rebuild time is documented: 810 s from destroyed VMs to a verified cluster, against the 40 minute target (a single measurement, [evidence](../reports/P1-U11-U13-rebuild-evidence.md)).
+
+**What worked.**
+- Chaining the earlier units into `infra/cluster.sh` made the rebuild one command with timed stages; every stage was idempotent, so a repeat run on the live cluster changed nothing.
+- Writing each unit's evidence from the researcher's own terminal output kept the numbers honest; failed first attempts stayed in the reports with their causes.
+- Using Cilium for the pod network, the layer 4 load balancer and the layer 7 entry meant one component to understand, one data path for Hubble, and no extra RAM.
+- The drills showed behaviour that was not obvious beforehand (volume-bound pods do not move, the eviction delay, the race after a rejoin).
+
+**What changed from the plan** (see Amendments).
+- Kubernetes 1.36.5 instead of 1.37.1, because Cilium 1.20 does not list 1.37; the cluster was rebuilt once.
+- Cilium LB IPAM with L2 announcements instead of MetalLB, and Cilium Gateway API instead of ingress-nginx (retired); recorded in ADR-002 to ADR-005.
+- Node memory raised from 2 GiB each to 3 GiB (control plane) and 5 GiB (workers), for monitoring.
+- Fourteen units grouped into six branches; branch names changed to say what they build.
+- The isolation step at the end of the phase was skipped on purpose (last amendment).
+
+**What went wrong on the way, and the fix.**
+- Helm updates the Cilium ConfigMap without restarting the pods, so L2 announcements and the Gateway controller stayed inactive after the first upgrade: `make cilium-restart` was added.
+- Restarted nodes reported "back" once SSH answered, before the API server was ready, and a drill started too early: the scripts now wait for `/readyz`.
+- Grafana was killed for running out of memory (384 Mi limit) when dashboards were opened: limit raised to 768 Mi.
+- After a node rejoin, pods scheduled onto the node before its Cilium agent answered waited about 5.5 minutes in one run; it did not reproduce in the next. The mitigation is in the node runbook.
+- The test scripts first used tools that the Prometheus and Grafana images do not contain (`wget`): they now go through the API server's Service proxy.
+
+**Left open or not tested.**
+- Isolation of the nodes and its tests (`make vms-isolate`, `isolated-network-test`, `vms-test`) after the rebuild; required before attacks.
+- No VM restore point exists after the rebuild (`reset` removes the snapshots); `make vms-snapshot` takes one.
+- Failover of the L2 announcement to another node was not tested; Hubble and Cilium metrics are not scraped by Prometheus; the etcd and node drills were not repeated on the rebuilt cluster; control-plane failure was not drilled (one node, one etcd member).
+- Both CoreDNS replicas were seen on one worker at the start of a drill.
+
+**Carried into Phase 2.** Take a baseline before any change (P2-U1); every hardening change needs a VM and an etcd snapshot first; hardening must be part of `make cluster`; the network policies must not cut DNS, the monitoring scrapes, Hubble or the Gateway; re-run the P1 acceptance checks after each branch.
