@@ -57,6 +57,7 @@ make test-hardening CONTROL=audit         # one control: anonymous | external-ip
 make scan LABEL=after-u2                  # kube-bench and kubescape again
 make scan-compare BEFORE=<baseline dir> AFTER=<after dir>
 make audit-log-size                       # size and files of the audit log on the control node
+make hardening-evidence                   # read-only evidence for encryption and audit (no secret values printed)
 make ansible-test                         # the second run must change nothing
 ```
 

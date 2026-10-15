@@ -161,11 +161,11 @@ Notes: confirm guest kernel has BTF (needed in P5). Study alongside: Kubernetes 
 | Unit | Description | Acceptance check | Status |
 |---|---|---|---|
 | P2-U1 | Baseline scans: kube-bench and kubescape, before any change | Scores saved under `docs/reports/` | [x] |
-| P2-U2 | Fix CIS findings: kubelet auth, anonymous access, file perms, API server flags | Re-scan shows each fix | [ ] |
+| P2-U2 | Fix CIS findings: kubelet auth, anonymous access, file perms, API server flags | Re-scan shows each fix | [x] |
 | P2-U3 | RBAC audit to least privilege | Audit report, no wildcard roles outside system | [ ] |
 | P2-U4 | Pod Security Admission at restricted | Privileged pod rejected | [ ] |
 | P2-U5 | Default-deny CiliumNetworkPolicy per namespace plus explicit allows | Unlisted traffic dropped, listed traffic passes | [ ] |
-| P2-U6 | etcd encryption at rest, API audit policy, log rotation | Secret unreadable in etcd, audit log present | [ ] |
+| P2-U6 | etcd encryption at rest, API audit policy, log rotation | Secret unreadable in etcd, audit log present | [x] |
 | P2-U7 | Kyverno policies: no privileged, limits required, registry allowlist | Each policy blocks its violation | [ ] |
 | P2-U8 | Service-to-service mTLS (Cilium mutual auth, Istio ambient or Linkerd; ADR) | mTLS verified between two services | [ ] |
 | P2-U9 | Trivy image scanning and secrets workflow (SOPS or External Secrets) | Vulnerable image flagged, secret decrypts only in cluster | [ ] |
