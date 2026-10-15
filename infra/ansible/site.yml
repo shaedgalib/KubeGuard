@@ -7,6 +7,16 @@
     - containerd
     - kubernetes_packages
 
+# P2-U2, P2-U6: the files the hardened API server flags point at must exist before kubeadm starts it.
+- name: Prepare the hardening files on the control node
+  hosts: control
+  become: true
+  tasks:
+    - name: Create the files the hardened API server flags point at
+      ansible.builtin.import_role:
+        name: hardening
+        tasks_from: prepare
+
 - name: Create the control plane
   hosts: control
   become: true
@@ -18,6 +28,23 @@
   become: true
   roles:
     - kubeadm_join
+
+# One node at a time, so a bad kubelet setting stops the run before it reaches the other nodes.
+- name: Harden the nodes
+  hosts: cluster
+  become: true
+  serial: 1
+  roles:
+    - hardening
+
+- name: Harden the control plane
+  hosts: control
+  become: true
+  tasks:
+    - name: Bring the running control plane in line with the kubeadm configuration
+      ansible.builtin.import_role:
+        name: hardening
+        tasks_from: controlplane
 
 - name: Check the cluster
   hosts: control

@@ -1,0 +1,86 @@
+# Control node, before "kubeadm init" and before the API server is restarted with the hardened
+# flags: the files and directories those flags point at must exist (P2-U2, P2-U6).
+
+- name: Create the directories for the hardening files
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+  loop: >-
+    {{ [hardening_auth_dir]
+       + ([hardening_audit_dir, hardening_audit_log_dir] if hardening_audit_enabled else [])
+       + ([hardening_encryption_dir] if hardening_encryption_enabled else []) }}
+
+- name: Limit anonymous requests to the health endpoints (CIS 1.2.1)
+  ansible.builtin.copy:
+    src: authentication-config.yaml
+    dest: "{{ hardening_auth_dir }}/authentication-config.yaml"
+    owner: root
+    group: root
+    mode: "0600"
+
+- name: Install the audit policy
+  ansible.builtin.copy:
+    src: audit-policy.yaml
+    dest: "{{ hardening_audit_dir }}/audit-policy.yaml"
+    owner: root
+    group: root
+    mode: "0600"
+  when: hardening_audit_enabled
+
+- name: Set up encryption of Secrets at rest
+  when: hardening_encryption_enabled
+  block:
+    - name: Check whether the encryption configuration exists
+      ansible.builtin.stat:
+        path: "{{ hardening_encryption_dir }}/encryption-config.yaml"
+      register: hardening_encryption_file
+
+    - name: Generate the encryption key (only when there is none; never shown or logged)
+      ansible.builtin.command: openssl rand -base64 32
+      register: hardening_encryption_key_new
+      changed_when: false
+      no_log: true
+      when: not hardening_encryption_file.stat.exists
+
+    - name: Write the encryption configuration
+      ansible.builtin.template:
+        src: encryption-config.yaml.j2
+        dest: "{{ hardening_encryption_dir }}/encryption-config.yaml"
+        owner: root
+        group: root
+        mode: "0600"
+      vars:
+        hardening_encryption_key: "{{ hardening_encryption_key_new.stdout }}"
+      no_log: true
+      when: not hardening_encryption_file.stat.exists
+
+    - name: Read the checksum of the encryption configuration
+      ansible.builtin.stat:
+        path: "{{ hardening_encryption_dir }}/encryption-config.yaml"
+        checksum_algorithm: sha256
+      register: hardening_encryption_sum
+
+    - name: Create the key backup directory, owner only (before any key is copied into it)
+      ansible.builtin.file:
+        path: "{{ hardening_key_backup_dir }}"
+        state: directory
+        mode: "0700"
+      become: false
+      delegate_to: localhost
+
+    # One file per distinct key, so a rebuild (new key) never overwrites the copy of an older key.
+    - name: Keep a copy of the encryption configuration on the host, outside the repository
+      ansible.builtin.fetch:
+        src: "{{ hardening_encryption_dir }}/encryption-config.yaml"
+        dest: "{{ hardening_key_backup_dir }}/{{ inventory_hostname }}-{{ hardening_encryption_sum.stat.checksum[:12] }}.yaml"
+        flat: true
+
+    - name: Restrict the key backup file to the owner
+      ansible.builtin.file:
+        path: "{{ hardening_key_backup_dir }}/{{ inventory_hostname }}-{{ hardening_encryption_sum.stat.checksum[:12] }}.yaml"
+        mode: "0600"
+      become: false
+      delegate_to: localhost

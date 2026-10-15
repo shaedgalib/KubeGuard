@@ -1,0 +1,12 @@
+# API server authentication settings (P2-U2, CIS 1.2.1).
+# Anonymous requests are accepted only on the health endpoints that kubeadm's probes call without
+# credentials. Everything else answers 401 to an anonymous caller. The --anonymous-auth flag cannot
+# be set to false instead: the API server pod's own liveness and readiness probes would fail.
+apiVersion: apiserver.config.k8s.io/v1
+kind: AuthenticationConfiguration
+anonymous:
+  enabled: true
+  conditions:
+    - path: /livez
+    - path: /readyz
+    - path: /healthz

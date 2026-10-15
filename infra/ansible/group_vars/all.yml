@@ -37,3 +37,67 @@ kubernetes_apt_key_fingerprint: "DE15B14486CD377B9E876E1A234654DA9A296436"
 kubernetes_pod_cidr: "10.244.0.0/16"
 kubernetes_service_cidr: "10.96.0.0/16"
 kubernetes_cluster_name: "kubeguard"
+
+# Hardening (P2-U2, P2-U6). One place for the settings that the kubeadm configuration, the
+# hardening role and the tests share. Decisions and reasons: docs/reports/P2-U2-cis-fixes.md.
+hardening_audit_enabled: true        # P2-U6: API audit log with rotation
+hardening_encryption_enabled: true   # P2-U6: Secrets encrypted in etcd
+
+hardening_auth_dir: /etc/kubernetes/auth
+hardening_audit_dir: /etc/kubernetes/audit
+hardening_audit_log_dir: /var/log/kubernetes/audit
+hardening_encryption_dir: /etc/kubernetes/encryption
+# Copies of the encryption configuration (it holds the key) go to the host, outside the repository.
+hardening_key_backup_dir: "{{ lookup('env', 'HOME') }}/.local/share/kubeguard/encryption-keys"
+
+hardening_tls_min_version: VersionTLS12
+hardening_tls_cipher_suites:         # the ECDHE AES-GCM and ChaCha20 suites the CIS benchmark lists
+  - TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256
+  - TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
+  - TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305
+  - TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384
+  - TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305
+  - TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384
+
+# Merged into /var/lib/kubelet/config.yaml of every node, and given to kubeadm so new nodes start hardened.
+hardening_kubelet_settings:
+  serverTLSBootstrap: true           # serving certificate signed by the cluster CA (needed for 1.2.5)
+  podPidsLimit: 4096                 # 4.2.13
+  seccompDefault: true               # 4.2.14
+  tlsMinVersion: "{{ hardening_tls_min_version }}"
+  tlsCipherSuites: "{{ hardening_tls_cipher_suites }}"   # 4.2.12
+
+hardening_apiserver_args_base:
+  - { name: profiling, value: "false" }                                          # 1.2.15
+  - { name: service-account-extend-token-expiration, value: "false" }            # 1.2.30
+  - { name: kubelet-certificate-authority, value: /etc/kubernetes/pki/ca.crt }   # 1.2.5
+  - { name: enable-admission-plugins, value: "NodeRestriction,DenyServiceExternalIPs" }   # 1.2.3
+  - { name: authentication-config, value: "{{ hardening_auth_dir }}/authentication-config.yaml" }   # 1.2.1
+  - { name: tls-min-version, value: "{{ hardening_tls_min_version }}" }
+  - { name: tls-cipher-suites, value: "{{ hardening_tls_cipher_suites | join(',') }}" }   # 1.2.29
+hardening_apiserver_args_audit:      # 1.2.16 to 1.2.19, 3.2.1, 3.2.2
+  - { name: audit-policy-file, value: "{{ hardening_audit_dir }}/audit-policy.yaml" }
+  - { name: audit-log-path, value: "{{ hardening_audit_log_dir }}/audit.log" }
+  - { name: audit-log-maxage, value: "30" }
+  - { name: audit-log-maxbackup, value: "10" }
+  - { name: audit-log-maxsize, value: "100" }
+hardening_apiserver_args_encryption: # 1.2.27, 1.2.28
+  - { name: encryption-provider-config, value: "{{ hardening_encryption_dir }}/encryption-config.yaml" }
+
+hardening_apiserver_volumes_base:
+  - { name: authn-config, path: "{{ hardening_auth_dir }}", read_only: true }
+hardening_apiserver_volumes_audit:
+  - { name: audit-policy, path: "{{ hardening_audit_dir }}", read_only: true }
+  - { name: audit-log, path: "{{ hardening_audit_log_dir }}", read_only: false }
+hardening_apiserver_volumes_encryption:
+  - { name: encryption-config, path: "{{ hardening_encryption_dir }}", read_only: true }
+
+# Lists the kubeadm template and the checks use (the toggles above decide what is included).
+hardening_apiserver_args: >-
+  {{ hardening_apiserver_args_base
+     + (hardening_apiserver_args_audit if hardening_audit_enabled else [])
+     + (hardening_apiserver_args_encryption if hardening_encryption_enabled else []) }}
+hardening_apiserver_volumes: >-
+  {{ hardening_apiserver_volumes_base
+     + (hardening_apiserver_volumes_audit if hardening_audit_enabled else [])
+     + (hardening_apiserver_volumes_encryption if hardening_encryption_enabled else []) }}
