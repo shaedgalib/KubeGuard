@@ -38,7 +38,13 @@ ns_up() {
   k label namespace $NS pod-security.kubernetes.io/enforce=baseline --overwrite >/dev/null
   NS_MADE=1
 }
-cleanup() { [ $NS_MADE = 1 ] && k delete namespace $NS --ignore-not-found --wait=false >/dev/null 2>&1; }
+AUDIT_TAGS=()   # probe namespaces made by the audit test; removed at exit even when a step in between failed
+cleanup() {
+  local t
+  [ $NS_MADE = 1 ] && k delete namespace $NS --ignore-not-found --wait=false >/dev/null 2>&1
+  for t in "${AUDIT_TAGS[@]}"; do k delete namespace "$t" --ignore-not-found --wait=false >/dev/null 2>&1; done
+  return 0
+}
 trap cleanup EXIT
 
 t_anonymous() {
@@ -186,6 +192,7 @@ t_audit() {
   echo "== API audit log (CIS 1.2.16 to 1.2.19, 3.2.1, 3.2.2)"
   ns_up
   local tag="audit-probe-$RANDOM$RANDOM" value="kg-audit-secret-$RANDOM$RANDOM" log=/var/log/kubernetes/audit/audit.log lvl hits
+  AUDIT_TAGS+=("$tag")
   k create namespace "$tag" >/dev/null && k -n $NS create secret generic "$tag" --from-literal=value="$value" >/dev/null \
     && k -n $NS get secret "$tag" >/dev/null && k delete namespace "$tag" --wait=false >/dev/null
   sleep 3
