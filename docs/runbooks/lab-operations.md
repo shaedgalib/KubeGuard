@@ -281,6 +281,10 @@ The test reaches Prometheus and Grafana through the API server's Service proxy, 
 
 Own runbook: [etcd-restore.md](etcd-restore.md). In short: `make etcd-snapshot` saves a snapshot to the host (outside git), `make etcd-restore SNAPSHOT=<file>` restores it, `make drill-etcd` runs the whole drill. Take `make vms-snapshot` first.
 
+## 13. Node drain, failure and rejoin (P1-U10)
+
+Own runbook: [node-failure.md](node-failure.md). In short: `make drill-node-drain NODE=...`, `make drill-node-fail NODE=...` and `make drill-node-rejoin NODE=...` (workers only).
+
 ## Troubleshooting
 
 | Symptom | Check |

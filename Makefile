@@ -8,7 +8,7 @@ CILIUM_VERSION := $(strip $(CILIUM))
 GATEWAY_API_VERSION := $(strip $(GATEWAY_API))
 LOCAL_PATH_VERSION := $(strip $(LOCAL_PATH))
 KUBE_PROMETHEUS_STACK_VERSION := $(strip $(KUBE_PROMETHEUS_STACK))
-.PHONY: help isolated-network-up isolated-network-down isolated-network-test internet-network-up internet-network-down template-vm-create template-vm-snapshot template-vm-restore-test template-vm-destroy vms vms-status vms-test vms-isolate vms-attach-internet vms-snapshot vms-restore vms-destroy ansible-setup ansible-inventory ansible-apply ansible-test kubectl cilium-install cilium-status cilium-uninstall hubble-ui gateway-api-crds cilium-restart cilium-lb storage-install net-test-u6 sample-app-install sample-app-remove net-test-u8 vms-resize monitoring-secret monitoring-install monitoring-status monitoring-uninstall grafana-password grafana-ui net-test-u7 etcd-snapshot etcd-restore drill-etcd
+.PHONY: help isolated-network-up isolated-network-down isolated-network-test internet-network-up internet-network-down template-vm-create template-vm-snapshot template-vm-restore-test template-vm-destroy vms vms-status vms-test vms-isolate vms-attach-internet vms-snapshot vms-restore vms-destroy ansible-setup ansible-inventory ansible-apply ansible-test kubectl cilium-install cilium-status cilium-uninstall hubble-ui gateway-api-crds cilium-restart cilium-lb storage-install net-test-u6 sample-app-install sample-app-remove net-test-u8 vms-resize monitoring-secret monitoring-install monitoring-status monitoring-uninstall grafana-password grafana-ui net-test-u7 etcd-snapshot etcd-restore drill-etcd drill-node-drain drill-node-fail drill-node-rejoin
 
 help: ## List targets
 	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-28s %s\n", $$1, $$2}'
@@ -183,3 +183,14 @@ etcd-restore: ## Restore etcd from a snapshot: make etcd-restore SNAPSHOT=<file>
 
 drill-etcd: ## P1-U9 drill: snapshot, change state, restore, verify (run make vms-snapshot first)
 	PROJECT_KUBECONFIG=$(PROJECT_KUBECONFIG) infra/drills/etcd.sh drill
+
+# P1-U10: node drills on a worker (docs/runbooks/node-failure.md). NODE defaults to kg-worker-1.
+NODE ?= kg-worker-1
+drill-node-drain: ## P1-U10: drain and uncordon a worker: make drill-node-drain NODE=kg-worker-2
+	PROJECT_KUBECONFIG=$(PROJECT_KUBECONFIG) infra/drills/node.sh drain $(NODE)
+
+drill-node-fail: ## P1-U10: power a worker off like a crash, watch recovery, power it on (about 10 min)
+	PROJECT_KUBECONFIG=$(PROJECT_KUBECONFIG) infra/drills/node.sh fail $(NODE)
+
+drill-node-rejoin: ## P1-U10: remove a worker, reset it and join it again with a new token
+	PROJECT_KUBECONFIG=$(PROJECT_KUBECONFIG) infra/drills/node.sh rejoin $(NODE)
