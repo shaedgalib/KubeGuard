@@ -27,6 +27,16 @@ wait_ssh() {  # wait_ssh <ip> [seconds]
   return 1
 }
 
+wait_api() {  # wait until the Kubernetes API on the control-plane node answers (after a node restart)
+  local ip; ip=$(rows | awk '$2=="control" {print $3; exit}')
+  [ -n "$ip" ] || return 0
+  for _ in $(seq 1 60); do
+    ssh_node "$ip" 'sudo kubectl --kubeconfig /etc/kubernetes/admin.conf get --raw /readyz' >/dev/null 2>&1 && { echo "API ready"; return 0; }
+    sleep 5
+  done
+  echo "API not ready after 300 s"; return 1
+}
+
 wait_off() {  # wait_off <vm>
   for _ in $(seq 1 60); do [ "$($V domstate "$1")" = "shut off" ] && return 0; sleep 2; done
   return 1
@@ -161,6 +171,7 @@ resize() {  # set each node's memory to the nodes.conf value; one node at a time
     $V setmem "$name-vm" "$want" --config
     $V start "$name-vm" >/dev/null
     wait_ssh "$ip" 300 && echo "back up: $name" || { echo "NOT reachable: $name"; exit 1; }
+    [ "$role" = control ] && wait_api
   done < <(rows)
 }
 
@@ -172,6 +183,7 @@ snapshot() {
   done < <(rows)
   while read -r name role ip imac emac vcpus mem disk; do $V start "$name-vm" >/dev/null; done < <(rows)
   while read -r name role ip imac emac vcpus mem disk; do wait_ssh "$ip" 300 && echo "back up: $name" || echo "NOT reachable: $name"; done < <(rows)
+  wait_api
 }
 
 restore() {  # return every node to its <name>-clean-snapshot (also re-attaches internet0)
@@ -181,6 +193,7 @@ restore() {  # return every node to its <name>-clean-snapshot (also re-attaches 
     $V start "$name-vm" >/dev/null
   done < <(rows)
   while read -r name role ip imac emac vcpus mem disk; do wait_ssh "$ip" 300 && echo "restored: $name" || echo "NOT reachable: $name"; done < <(rows)
+  wait_api
 }
 
 destroy() {

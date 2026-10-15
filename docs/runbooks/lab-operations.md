@@ -277,6 +277,14 @@ make monitoring-uninstall    # remove the release (namespace, Secret and volume 
 
 The test reaches Prometheus and Grafana through the API server's Service proxy, for example `make kubectl ARGS='get --raw /api/v1/namespaces/monitoring/services/monitoring-grafana:80/proxy/api/health'`.
 
+## 12. etcd snapshot and restore (P1-U9)
+
+Own runbook: [etcd-restore.md](etcd-restore.md). In short: `make etcd-snapshot` saves a snapshot to the host (outside git), `make etcd-restore SNAPSHOT=<file>` restores it, `make drill-etcd` runs the whole drill. Take `make vms-snapshot` first.
+
+## 13. Node drain, failure and rejoin (P1-U10)
+
+Own runbook: [node-failure.md](node-failure.md). In short: `make drill-node-drain NODE=...`, `make drill-node-fail NODE=...` and `make drill-node-rejoin NODE=...` (workers only).
+
 ## Troubleshooting
 
 | Symptom | Check |

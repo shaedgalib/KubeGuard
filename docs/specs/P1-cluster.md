@@ -121,8 +121,8 @@ Names follow [docs/naming.md](../naming.md). Accepted by the researcher on 2026-
 | P1-U6 | Cilium LB IPAM with L2 announcements, Cilium Gateway API, local-path storage | LoadBalancer IP assigned, PVC binds | `feat/p1-cluster-networking` | [x] |
 | P1-U7 | kube-prometheus-stack with short retention | Grafana dashboards load, RAM within budget | `feat/p1-cluster-monitoring-apps` | [x] |
 | P1-U8 | Sample app via the load balancer and Gateway, flows seen in Hubble | Request from host succeeds, flow appears | `feat/p1-cluster-monitoring-apps` | [x] |
-| P1-U9 | etcd snapshot and restore drill | Restore tested, steps in runbook | `feat/p1-cluster-drills` | [ ] |
-| P1-U10 | Node drain, node failure and rejoin drills | Cluster recovers, steps in runbook | `feat/p1-cluster-drills` | [ ] |
+| P1-U9 | etcd snapshot and restore drill | Restore tested, steps in runbook | `feat/p1-cluster-drills` | [x] |
+| P1-U10 | Node drain, node failure and rejoin drills | Cluster recovers, steps in runbook | `feat/p1-cluster-drills` | [x] |
 | P1-U11 | `make up`, `make down`, `make reset`, `make cluster` | Clean VMs to Ready cluster with one command | `feat/p1-cluster-automation` | [ ] |
 | P1-U12 | ADRs: CNI, load balancer, ingress, storage | 4 ADRs committed | `feat/p1-cluster-networking` | [x] |
 | P1-U13 | Rebuild time measured | Documented, target under 40 minutes | `feat/p1-cluster-automation` | [ ] |
@@ -366,6 +366,38 @@ The data lives on one node, so the pod is tied to that node (comparable to EBS, 
 **Verification.** `/` returns `frontend ok` and `/api` returns `backend ok` from the host; Hubble shows `http-request` and `http-response` records and the frontend to backend TCP connection with verdict `FORWARDED`.
 
 **Status.** Done. Branch `feat/p1-cluster-monitoring-apps`.
+
+### P1-U9: etcd snapshot and restore drill
+
+**Objective.** Show that the cluster state can be recovered from an etcd snapshot, and document the procedure.
+
+**Rationale.** The cluster has one control-plane node and one etcd member, so a snapshot is the only way back from lost or damaged cluster state. Hardening in Phase 2 changes the cluster in ways that may need undoing. A recovery path that was never tested is not a recovery path.
+
+**Deliverables.**
+- `infra/drills/etcd.sh` (`snapshot`, `restore`, `drill`), Makefile targets `etcd-snapshot`, `etcd-restore`, `drill-etcd`; `docs/runbooks/etcd-restore.md`.
+- [docs/reports/P1-U9-etcd-restore-evidence.md](../reports/P1-U9-etcd-restore-evidence.md).
+
+**Implementation.** The etcd image already contains `etcdctl` and `etcdutl` (3.6.8), so all steps run through `crictl exec` on the node and nothing is installed. A snapshot is saved inside the etcd container, verified with `etcdutl snapshot status` and copied to the host outside the repository (it contains all Secrets). A restore builds the new data directory while etcd still runs, stops etcd and the API server by moving their static pod manifests away, swaps the data directories (keeping the old one) and starts both again. The drill makes a visible change after the snapshot, restores, and checks that the earlier state is back.
+
+**Verification.** A deleted ConfigMap returned and a ConfigMap created after the snapshot disappeared; all nodes `Ready`, `kube-system` pods `Running`. A VM snapshot was taken before the drill.
+
+**Status.** Done. Branch `feat/p1-cluster-drills`.
+
+### P1-U10: Node drain, failure and rejoin drills
+
+**Objective.** Show that the cluster survives losing a worker, and document how to drain, recover and rejoin one.
+
+**Rationale.** Hardening in Phase 2 and the attack runs in Phase 3 will disturb nodes. Knowing how the cluster behaves when a worker is drained, crashes or is replaced, and having tested steps for each, makes those phases safer. It is also the self-managed counterpart of replacing instances in a managed node group.
+
+**Deliverables.**
+- `infra/drills/node.sh` (`drain`, `fail`, `rejoin`), Makefile targets `drill-node-drain`, `drill-node-fail`, `drill-node-rejoin`; `docs/runbooks/node-failure.md`.
+- [docs/reports/P1-U10-node-drills-evidence.md](../reports/P1-U10-node-drills-evidence.md).
+
+**Implementation.** Each drill checks that the cluster is healthy first and works on workers only. `drain` cordons and drains a worker and checks that no workload pod is left, then uncordons it. `fail` powers the VM off with a hard stop, waits for `NotReady` and for all Deployments to be available again on the other worker, then powers it on. `rejoin` drains the node, deletes it, resets it with `kubeadm reset`, reboots it, and joins it again with a new token and the node name and CRI socket used by the Ansible role. The script prints the times it measures.
+
+**Verification.** Drain: Deployment pods moved and everything was `Running` again 32 s after the uncordon; Prometheus (local-path volume) stayed `Pending` while its node was drained. Failure: `NotReady` after 46 s, all Deployments available 490 s after the power-off, node `Ready` 22 s after power-on. Rejoin: node `Ready` 11 s after the join, Cilium agent ready after 26 s, address `10.77.0.12`, all pods `Running` after 31 s. A first rejoin run exceeded the script's wait because pods were placed on the node before its Cilium agent answered; the wait was extended and the cause recorded in the evidence.
+
+**Status.** Done. Branch `feat/p1-cluster-drills`.
 
 ### P1-U12: Architecture decision records
 
