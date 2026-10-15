@@ -33,7 +33,7 @@ context() {
     echo "date: $(date -Is)"
     echo "git: $(git branch --show-current) @ $(git rev-parse --short HEAD)$(git diff --quiet HEAD -- || echo ' (uncommitted changes in the working tree)')"
     echo "kube-bench: v$KUBE_BENCH, profile $KUBE_BENCH_BENCHMARK, targets: control node master,etcd,controlplane,policies,node; workers node"
-    echo "kubescape: $(env -u KUBECONFIG kubescape version 2>/dev/null | head -1), controls $KUBESCAPE_CONTROLS, frameworks $FRAMEWORKS"
+    echo "kubescape: $(env -u KUBECONFIG kubescape version 2>/dev/null | head -1 | sed 's/.*: //'), controls $KUBESCAPE_CONTROLS, frameworks $FRAMEWORKS"
     echo "kubernetes server: $(k version -o json | jq -r .serverVersion.gitVersion)"
     echo "nodes:"; k get nodes -o wide --no-headers
   } > "$OUT/context.txt"
