@@ -123,9 +123,9 @@ Names follow [docs/naming.md](../naming.md). Accepted by the researcher on 2026-
 | P1-U8 | Sample app via the load balancer and Gateway, flows seen in Hubble | Request from host succeeds, flow appears | `feat/p1-cluster-monitoring-apps` | [x] |
 | P1-U9 | etcd snapshot and restore drill | Restore tested, steps in runbook | `feat/p1-cluster-drills` | [x] |
 | P1-U10 | Node drain, node failure and rejoin drills | Cluster recovers, steps in runbook | `feat/p1-cluster-drills` | [x] |
-| P1-U11 | `make up`, `make down`, `make reset`, `make cluster` | Clean VMs to Ready cluster with one command | `feat/p1-cluster-automation` | [ ] |
+| P1-U11 | `make up`, `make down`, `make reset`, `make cluster` | Clean VMs to Ready cluster with one command | `feat/p1-cluster-automation` | [x] |
 | P1-U12 | ADRs: CNI, load balancer, ingress, storage | 4 ADRs committed | `feat/p1-cluster-networking` | [x] |
-| P1-U13 | Rebuild time measured | Documented, target under 40 minutes | `feat/p1-cluster-automation` | [ ] |
+| P1-U13 | Rebuild time measured | Documented, target under 40 minutes | `feat/p1-cluster-automation` | [x] |
 | P1-U14 | Phase 2 spec | `docs/specs/P2-hardening.md` approved | `docs/p1-p2-spec` | [ ] |
 
 ## Branches
@@ -398,6 +398,37 @@ The data lives on one node, so the pod is tied to that node (comparable to EBS, 
 **Verification.** Drain: Deployment pods moved and everything was `Running` again 32 s after the uncordon; Prometheus (local-path volume) stayed `Pending` while its node was drained. Failure: `NotReady` after 46 s, all Deployments available 490 s after the power-off, node `Ready` 22 s after power-on. Rejoin: node `Ready` 11 s after the join, Cilium agent ready after 26 s, address `10.77.0.12`, all pods `Running` after 31 s. A first rejoin run exceeded the script's wait because pods were placed on the node before its Cilium agent answered; the wait was extended and the cause recorded in the evidence.
 
 **Status.** Done. Branch `feat/p1-cluster-drills`.
+
+### P1-U11: Lifecycle commands
+
+**Objective.** Take the lab from clean VMs to a verified cluster, and start, stop and reset it, each with one command.
+
+**Rationale.** The cluster must be rebuildable without remembering a dozen steps: every later experiment may need a clean cluster, and a rebuild is the recovery of last resort. One script also keeps the order of the stages (networks, VMs, Kubernetes, Cilium, storage, monitoring, checks) in one place.
+
+**Deliverables.**
+- `infra/cluster.sh` and Makefile targets `up`, `down`, `reset`, `cluster`, `rebuild`; `docs/runbooks/rebuild.md`.
+- [docs/reports/P1-U11-U13-rebuild-evidence.md](../reports/P1-U11-U13-rebuild-evidence.md).
+
+**Implementation.** The script only chains the targets of the earlier units. `up` starts the networks and VMs and waits for the API and all nodes `Ready`; `down` shuts the VMs down gracefully; `reset` destroys the node VMs and creates clean ones from the template and refuses without `CONFIRM=yes`; `cluster` runs the stages in order and stops at the first failure, naming it; `rebuild` is `reset` plus `cluster`. Every stage is idempotent, so a failed run is repeated with `make cluster`. Each stage prints its duration and the log is written outside the repository.
+
+**Verification.** `reset` without `CONFIRM` destroys nothing; `down` then `up` worked; `make cluster` on the running cluster passed all stages in 140 s without changes; `make rebuild CONFIRM=yes` rebuilt everything from clean VMs and passed all checks.
+
+**Status.** Done. Branch `feat/p1-cluster-automation`.
+
+### P1-U13: Rebuild time
+
+**Objective.** Measure how long a rebuild from clean VMs takes and compare it with the 40 minute target.
+
+**Rationale.** A rebuild that takes hours will not be used. The target keeps the lab cheap to reset between experiments, and the stage times show where the time goes.
+
+**Deliverables.**
+- Stage timing built into `infra/cluster.sh`; the measurement in [docs/reports/P1-U11-U13-rebuild-evidence.md](../reports/P1-U11-U13-rebuild-evidence.md).
+
+**Implementation.** `make rebuild CONFIRM=yes` times each stage and the total, and prints `PASS` or `FAIL` against 2400 s.
+
+**Verification.** One run from destroyed VMs to a verified cluster took 810 s (13 min 30 s): creating the VMs 140 s, Kubernetes with Ansible 231 s, Cilium and Hubble 180 s, monitoring 184 s, all other stages together 75 s. One measurement; it includes downloads on fresh nodes.
+
+**Status.** Done. Branch `feat/p1-cluster-automation`.
 
 ### P1-U12: Architecture decision records
 

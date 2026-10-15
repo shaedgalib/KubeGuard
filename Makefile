@@ -8,12 +8,12 @@ CILIUM_VERSION := $(strip $(CILIUM))
 GATEWAY_API_VERSION := $(strip $(GATEWAY_API))
 LOCAL_PATH_VERSION := $(strip $(LOCAL_PATH))
 KUBE_PROMETHEUS_STACK_VERSION := $(strip $(KUBE_PROMETHEUS_STACK))
-.PHONY: help isolated-network-up isolated-network-down isolated-network-test internet-network-up internet-network-down template-vm-create template-vm-snapshot template-vm-restore-test template-vm-destroy vms vms-status vms-test vms-isolate vms-attach-internet vms-snapshot vms-restore vms-destroy ansible-setup ansible-inventory ansible-apply ansible-test kubectl cilium-install cilium-status cilium-uninstall hubble-ui gateway-api-crds cilium-restart cilium-lb storage-install net-test-u6 sample-app-install sample-app-remove net-test-u8 vms-resize monitoring-secret monitoring-install monitoring-status monitoring-uninstall grafana-password grafana-ui net-test-u7 etcd-snapshot etcd-restore drill-etcd drill-node-drain drill-node-fail drill-node-rejoin
+.PHONY: help isolated-network-up isolated-network-down isolated-network-test internet-network-up internet-network-down template-vm-create template-vm-snapshot template-vm-restore-test template-vm-destroy vms vms-status vms-test vms-isolate vms-attach-internet vms-snapshot vms-restore vms-destroy ansible-setup ansible-inventory ansible-apply ansible-test kubectl cilium-install cilium-status cilium-uninstall hubble-ui gateway-api-crds cilium-restart cilium-lb storage-install net-test-u6 sample-app-install sample-app-remove net-test-u8 vms-resize monitoring-secret monitoring-install monitoring-status monitoring-uninstall grafana-password grafana-ui net-test-u7 etcd-snapshot etcd-restore drill-etcd drill-node-drain drill-node-fail drill-node-rejoin up down reset cluster rebuild
 
 help: ## List targets
 	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-28s %s\n", $$1, $$2}'
 
-# Targets for up, down, reset and cluster are added in Phase 1.
+# Lab lifecycle (P1-U11, P1-U13): up, down, reset, cluster, rebuild (see the targets at the end of this file).
 # Naming rules: docs/naming.md
 
 # P0-U5: isolated network (no internet, the only network attacks may use)
@@ -194,3 +194,19 @@ drill-node-fail: ## P1-U10: power a worker off like a crash, watch recovery, pow
 
 drill-node-rejoin: ## P1-U10: remove a worker, reset it and join it again with a new token
 	PROJECT_KUBECONFIG=$(PROJECT_KUBECONFIG) infra/drills/node.sh rejoin $(NODE)
+
+# P1-U11 / P1-U13: lab lifecycle in one command, with timed stages (infra/cluster.sh, docs/runbooks/rebuild.md).
+up: ## Start the networks and node VMs, wait until the API answers and all nodes are Ready
+	infra/cluster.sh up
+
+down: ## Shut the node VMs down gracefully (frees their RAM)
+	infra/cluster.sh down
+
+reset: ## DESTROY the node VMs and create fresh ones (CONFIRM=yes required)
+	CONFIRM=$(CONFIRM) infra/cluster.sh reset
+
+cluster: ## From clean VMs to the full cluster (Kubernetes, Cilium, load balancer, Gateway, storage, monitoring, sample app, checks)
+	infra/cluster.sh cluster
+
+rebuild: ## reset + cluster with total time against the 40 minute target (CONFIRM=yes required)
+	CONFIRM=$(CONFIRM) infra/cluster.sh rebuild

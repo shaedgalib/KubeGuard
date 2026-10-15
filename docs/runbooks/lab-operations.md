@@ -285,6 +285,10 @@ Own runbook: [etcd-restore.md](etcd-restore.md). In short: `make etcd-snapshot` 
 
 Own runbook: [node-failure.md](node-failure.md). In short: `make drill-node-drain NODE=...`, `make drill-node-fail NODE=...` and `make drill-node-rejoin NODE=...` (workers only).
 
+## 14. Lifecycle and rebuild (P1-U11, P1-U13)
+
+Own runbook: [rebuild.md](rebuild.md). In short: `make up`, `make down`, `make reset CONFIRM=yes`, `make cluster` and `make rebuild CONFIRM=yes` (reset plus cluster, timed).
+
 ## Troubleshooting
 
 | Symptom | Check |
