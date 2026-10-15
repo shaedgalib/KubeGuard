@@ -8,7 +8,7 @@ CILIUM_VERSION := $(strip $(CILIUM))
 GATEWAY_API_VERSION := $(strip $(GATEWAY_API))
 LOCAL_PATH_VERSION := $(strip $(LOCAL_PATH))
 KUBE_PROMETHEUS_STACK_VERSION := $(strip $(KUBE_PROMETHEUS_STACK))
-.PHONY: help isolated-network-up isolated-network-down isolated-network-test internet-network-up internet-network-down template-vm-create template-vm-snapshot template-vm-restore-test template-vm-destroy vms vms-status vms-test vms-isolate vms-attach-internet vms-snapshot vms-restore vms-destroy ansible-setup ansible-inventory ansible-apply ansible-test kubectl cilium-install cilium-status cilium-uninstall hubble-ui gateway-api-crds cilium-restart cilium-lb storage-install net-test-u6 sample-app-install sample-app-remove net-test-u8 vms-resize monitoring-secret monitoring-install monitoring-status monitoring-uninstall grafana-password grafana-ui net-test-u7 etcd-snapshot etcd-restore drill-etcd drill-node-drain drill-node-fail drill-node-rejoin up down reset cluster rebuild
+.PHONY: help isolated-network-up isolated-network-down isolated-network-test internet-network-up internet-network-down template-vm-create template-vm-snapshot template-vm-restore-test template-vm-destroy vms vms-status vms-test vms-isolate vms-attach-internet vms-snapshot vms-restore vms-destroy ansible-setup ansible-inventory ansible-apply ansible-test kubectl cilium-install cilium-status cilium-uninstall hubble-ui gateway-api-crds cilium-restart cilium-lb storage-install net-test-u6 sample-app-install sample-app-remove net-test-u8 vms-resize monitoring-secret monitoring-install monitoring-status monitoring-uninstall grafana-password grafana-ui net-test-u7 etcd-snapshot etcd-restore drill-etcd drill-node-drain drill-node-fail drill-node-rejoin up down reset cluster rebuild kubescape-install scan scan-summary scan-compare
 
 help: ## List targets
 	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-28s %s\n", $$1, $$2}'
@@ -210,3 +210,19 @@ cluster: ## From clean VMs to the full cluster (Kubernetes, Cilium, load balance
 
 rebuild: ## reset + cluster with total time against the 40 minute target (CONFIRM=yes required)
 	CONFIRM=$(CONFIRM) infra/cluster.sh rebuild
+
+# P2-U1: security scanners (infra/scans/). Raw output goes to ~/.local/share/kubeguard/scans, outside git.
+# kube-bench needs its image on the nodes: run "make vms-attach-internet" first while the build window is open.
+kubescape-install: ## Install the pinned kubescape CLI into ~/.local/bin (checksum verified)
+	infra/scans/install-kubescape.sh
+
+scan: ## Run kube-bench and kubescape, read-only: make scan LABEL=baseline [WHAT=all|kube-bench|kubescape]
+	@test -n "$(LABEL)" || { echo "usage: make scan LABEL=<name> [WHAT=all|kube-bench|kubescape]"; exit 2; }
+	PROJECT_KUBECONFIG=$(PROJECT_KUBECONFIG) infra/scans/run.sh $(LABEL) $(or $(WHAT),all)
+
+scan-summary: ## Print the scores of a saved scan as markdown: make scan-summary [DIR=<scan dir>] (default: the latest)
+	infra/scans/summarize.py $(DIR)
+
+scan-compare: ## Show what changed between two saved scans: make scan-compare BEFORE=<dir> AFTER=<dir>
+	@test -n "$(BEFORE)" -a -n "$(AFTER)" || { echo "usage: make scan-compare BEFORE=<scan dir> AFTER=<scan dir>"; exit 2; }
+	infra/scans/summarize.py --compare $(BEFORE) $(AFTER)

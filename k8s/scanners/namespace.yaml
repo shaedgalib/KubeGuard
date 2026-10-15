@@ -1,0 +1,9 @@
+# Namespace for the CIS scanner Jobs (P2-U1). kube-bench needs hostPID and read-only host paths,
+# so this namespace is the one documented exemption from Pod Security restrictions (P2-U4).
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: scanners
+  labels:
+    app.kubernetes.io/part-of: kubeguard
+    pod-security.kubernetes.io/enforce: privileged
