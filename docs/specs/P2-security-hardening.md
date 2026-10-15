@@ -117,6 +117,58 @@ The assistant never produces the benchmark numbers: they come from the scanners,
 
 The full table, with the controls actually built, is the deliverable of P2-U11.
 
+## Unit details
+
+One entry per finished unit: objective, rationale, deliverables, implementation, verification and status. The status column of the unit table is ticked when the unit's acceptance check has passed.
+
+### P2-U1: Baseline scans
+
+**Objective.** Measure the unhardened Phase 1 cluster with two independent scanners before anything is changed, so that every later score has a baseline.
+
+**Rationale.** Without a baseline, "before and after" cannot be shown and the choice of what to fix has no evidence. Two scanners give two views of the same cluster. Both only read the cluster.
+
+**Deliverables.**
+- `infra/scans/` (`run.sh`, `summarize.py`, `install-kubescape.sh`, `kubescape/`), `k8s/scanners/`, Makefile targets `kubescape-install`, `scan`, `scan-summary`, `scan-compare`.
+- [docs/reports/P2-U1-baseline.md](../reports/P2-U1-baseline.md).
+
+**Implementation.** kube-bench v0.16.0 runs as read-only Jobs on every node with the `cis-1.12` profile set by hand, because its version map stops at Kubernetes 1.34. kubescape v4.0.16 runs from the host with the project kubeconfig, a pinned controls version, a pinned controls configuration and an empty exceptions list. Raw output stays outside git; scores are copied by script, never typed.
+
+**Verification.** Two earlier trial scans of the unchanged cluster gave the same totals, scores and statuses as the baseline.
+
+**Status.** Done. Branch `feat/p2-baseline-hardening`.
+
+### P2-U2: CIS fixes
+
+**Objective.** Fix the CIS findings that the lab can carry, accept the others with a reason, and show each fix in a re-scan.
+
+**Rationale.** A wrong API server flag can lock the control plane. Every change therefore goes through one Ansible role, behind VM and etcd snapshots, with a negative test per control that was written first and failed on the unhardened cluster.
+
+**Deliverables.**
+- `infra/ansible/roles/hardening/`, changes in `roles/kubeadm_init/` and `group_vars/all.yml`, `infra/hardening/test.sh`, Makefile target `test-hardening`.
+- [docs/runbooks/hardening.md](../runbooks/hardening.md) and [docs/reports/P2-U2-cis-fixes.md](../reports/P2-U2-cis-fixes.md).
+
+**Implementation.** The hardened settings are part of the kubeadm configuration (API server flags, kubelet configuration), so a new cluster starts hardened. On a running cluster the role merges the kubelet settings node by node, approves each node's own kubelet serving certificate request, and regenerates the control-plane manifests with `kubeadm init phase control-plane` only when the configuration changed, after copying the old manifests aside. Anonymous access is limited to the health paths with an `AuthenticationConfiguration`, because kubeadm's own probes are anonymous.
+
+**Verification.** All negative tests pass; the re-scan shows each fix except kube-bench 1.2.1 and kubescape C-0113, which look only for `--anonymous-auth=false` and are covered by a test instead; the second playbook run changes nothing; the P1 acceptance checks pass.
+
+**Status.** Done. Branch `feat/p2-baseline-hardening`. Open point: `make rebuild` with the hardening is proven at gate G1.
+
+### P2-U6: Encryption at rest, audit log and rotation
+
+**Objective.** Store Secrets encrypted in etcd and write a rotated API audit log, with the key kept outside the repository.
+
+**Rationale.** etcd holds every Secret, and a snapshot or a disk copy would expose them. The audit log is also an input for the detection work of Phase 4.
+
+**Deliverables.**
+- Encryption and audit parts of the role (`templates/encryption-config.yaml.j2`, `files/audit-policy.yaml`), `infra/hardening/evidence.sh` (`make hardening-evidence`), changes to `infra/drills/etcd.sh` and `node.sh`.
+- [docs/reports/P2-U6-encryption-audit-evidence.md](../reports/P2-U6-encryption-audit-evidence.md).
+
+**Implementation.** `EncryptionConfiguration` with secretbox and an identity fallback. The key is generated on the control node and copied to the host outside the repository, one file per distinct key; existing Secrets are rewritten once; etcd snapshots carry a `.key-id` file that names the key. Audit policy: `Metadata` for Secrets, ConfigMaps and tokens, `Request` for security-relevant writes, nothing for routine noise; rotation after 30 days, 10 files, 100 MB each.
+
+**Verification.** etcd records carry the secretbox prefix and no plaintext; the API server still returns the value; the audit log exists with mode 600, logs at the designed levels and holds no Secret value; the etcd drill passes with encrypted Secrets.
+
+**Status.** Done. Branch `feat/p2-baseline-hardening`. Limits: the key and the log are on the control-plane node.
+
 ## Risks
 
 - **A control breaks the cluster.** A wrong API server flag can stop the control plane; default-deny can cut DNS, monitoring or the Gateway. Mitigation: VM and etcd snapshots before each change (H2), small steps, the P1 acceptance checks after each branch, changes through Ansible so they can be reverted and rebuilt.
@@ -137,7 +189,8 @@ G1, at the end of Phase 2: the cluster is stable and reproducible after hardenin
 
 Changes to the approved plan during Phase 2. One line each: date, decision number, change, reason.
 
-(None yet.)
+- 2026-10-16, H10 and P2-U10: the negative-test script `infra/hardening/test.sh` and `make test-hardening` start in P2-U2 (tests written first, run on the unhardened cluster); P2-U10 extends them. Reason: each fix needs its test when it is made.
+- 2026-10-16, H3: `make cluster` now ends with `make test-hardening`. Reason: the hardening is part of the Ansible stage, so its tests belong to the rebuild checks.
 
 ## Retrospective (filled at phase exit)
 
