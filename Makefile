@@ -8,7 +8,7 @@ CILIUM_VERSION := $(strip $(CILIUM))
 GATEWAY_API_VERSION := $(strip $(GATEWAY_API))
 LOCAL_PATH_VERSION := $(strip $(LOCAL_PATH))
 KUBE_PROMETHEUS_STACK_VERSION := $(strip $(KUBE_PROMETHEUS_STACK))
-.PHONY: help isolated-network-up isolated-network-down isolated-network-test internet-network-up internet-network-down template-vm-create template-vm-snapshot template-vm-restore-test template-vm-destroy vms vms-status vms-test vms-isolate vms-attach-internet vms-snapshot vms-restore vms-destroy ansible-setup ansible-inventory ansible-apply ansible-test kubectl cilium-install cilium-status cilium-uninstall hubble-ui gateway-api-crds cilium-restart cilium-lb storage-install net-test-u6 sample-app-install sample-app-remove net-test-u8 vms-resize monitoring-secret monitoring-install monitoring-status monitoring-uninstall grafana-password grafana-ui net-test-u7 etcd-snapshot etcd-restore drill-etcd drill-node-drain drill-node-fail drill-node-rejoin up down reset cluster rebuild kubescape-install scan scan-summary scan-compare test-hardening audit-log-size
+.PHONY: help isolated-network-up isolated-network-down isolated-network-test internet-network-up internet-network-down template-vm-create template-vm-snapshot template-vm-restore-test template-vm-destroy vms vms-status vms-test vms-isolate vms-attach-internet vms-snapshot vms-restore vms-destroy ansible-setup ansible-inventory ansible-apply ansible-test kubectl cilium-install cilium-status cilium-uninstall hubble-ui gateway-api-crds cilium-restart cilium-lb storage-install net-test-u6 sample-app-install sample-app-remove net-test-u8 vms-resize monitoring-secret monitoring-install monitoring-status monitoring-uninstall grafana-password grafana-ui net-test-u7 etcd-snapshot etcd-restore drill-etcd drill-node-drain drill-node-fail drill-node-rejoin up down reset cluster rebuild kubescape-install scan scan-summary scan-compare test-hardening hardening-evidence audit-log-size
 
 help: ## List targets
 	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-28s %s\n", $$1, $$2}'
@@ -230,6 +230,9 @@ scan-compare: ## Show what changed between two saved scans: make scan-compare BE
 # P2-U2 / P2-U6: tests of the hardening controls (infra/hardening/test.sh). P2-U10 makes this the one command for all controls.
 test-hardening: ## Run the hardening tests, all or one: make test-hardening [CONTROL=anonymous|external-ips|profiling|files|kubelet-tls|tls|pid-limit|seccomp|etcd-encryption|audit]
 	PROJECT_KUBECONFIG=$(PROJECT_KUBECONFIG) infra/hardening/test.sh $(or $(CONTROL),all)
+
+hardening-evidence: ## P2-U6: read-only evidence for encryption at rest and the audit log (no secret values are printed)
+	infra/hardening/evidence.sh
 
 audit-log-size: ## Show the size and files of the API audit log on the control-plane node
 	@ssh -n -i $(HOME)/.ssh/kubeguard-lab -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR ubuntu@10.77.0.10 'sudo du -sh /var/log/kubernetes/audit; sudo ls -la /var/log/kubernetes/audit; df -h /var/log | tail -1'
