@@ -36,6 +36,18 @@ grafana:
     passwordKey: admin-password
   persistence:
     enabled: false
+  # Least privilege (P2-U3). By default the dashboard sidecar watches ConfigMaps and Secrets in ALL namespaces
+  # through a ClusterRole. Dashboards and data sources are ConfigMaps in this namespace, so the sidecars read
+  # only ConfigMaps, only here, through a namespaced Role.
+  rbac:
+    namespaced: true
+  sidecar:
+    dashboards:
+      searchNamespace: monitoring
+      resource: configmap
+    datasources:
+      searchNamespace: monitoring
+      resource: configmap
   # 384 Mi was too small: the container was OOM-killed when dashboards were opened (P1-U7 evidence).
   resources:
     requests: {cpu: 50m, memory: 256Mi}
@@ -50,6 +62,35 @@ kube-state-metrics:
   resources:
     requests: {cpu: 20m, memory: 32Mi}
     limits: {memory: 128Mi}
+  # Least privilege (P2-U3): the default collector list includes Secrets and ConfigMaps, which gives the
+  # service account list and watch rights on every Secret in the cluster. The dashboards do not use them.
+  collectors:
+    - certificatesigningrequests
+    - cronjobs
+    - daemonsets
+    - deployments
+    - endpointslices
+    - horizontalpodautoscalers
+    - ingresses
+    - jobs
+    - leases
+    - limitranges
+    - mutatingwebhookconfigurations
+    - namespaces
+    - networkpolicies
+    - nodes
+    - persistentvolumeclaims
+    - persistentvolumes
+    - poddisruptionbudgets
+    - pods
+    - replicasets
+    - replicationcontrollers
+    - resourcequotas
+    - services
+    - statefulsets
+    - storageclasses
+    - validatingwebhookconfigurations
+    - volumeattachments
 
 prometheus-node-exporter:
   resources:
