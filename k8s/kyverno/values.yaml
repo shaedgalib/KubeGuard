@@ -1,0 +1,24 @@
+# Helm values for Kyverno (P2-U7). Chart version is pinned in infra/versions.env.
+# Install with: make kyverno-install      Policies: make kyverno-policies
+#
+# Sized for the lab: one replica of each controller (the chart default is three, for high availability; the
+# lab has one control-plane node and two workers) and no cleanup controller (no cleanup policies are used).
+admissionController:
+  replicas: 1
+backgroundController:
+  replicas: 1
+reportsController:
+  replicas: 1
+cleanupController:
+  enabled: false
+
+config:
+  # The admission webhooks are not called for the system namespaces (the Kyverno namespace is excluded by the
+  # chart). Policies cannot block system components, and a Kyverno outage cannot stop the add-ons or the
+  # monitoring stack from restarting. Keep this list equal to the exclusion in k8s/kyverno/policies/.
+  webhooks:
+    namespaceSelector:
+      matchExpressions:
+        - key: kubernetes.io/metadata.name
+          operator: NotIn
+          values: [kube-system, kube-public, kube-node-lease, cilium-secrets, local-path-storage, monitoring, scanners]
