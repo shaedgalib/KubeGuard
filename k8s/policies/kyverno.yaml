@@ -1,0 +1,56 @@
+# P2-U5: network policy for the namespace "kyverno" (the policy engine). DRAFT proposed by the assistant on
+# 2026-10-16 from the flows Hubble showed; review it.
+#
+# Allowed:
+#   - DNS from every pod to CoreDNS
+#   - every Kyverno pod to the API server on 6443 (they all watch and update resources)
+#   - the API server to the admission controller on 9443: the webhook calls. Seen from a worker the API server
+#     is the control-plane node, identity "remote-node" (and "host" when the pod runs on that same node).
+# Not allowed: Prometheus scraping the Kyverno metrics (port 8000; no ServiceMonitor exists yet), any other
+# namespace, the internet.
+# A Helm upgrade of Kyverno runs hook pods in this namespace (migrate-resources, webhook cleanup). They need the
+# API server too; if an upgrade stalls, look for them (kubectl -n kyverno get pods) and for AUDIT or DROPPED flows.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata: {name: default-deny, namespace: kyverno}
+spec:
+  description: "Deny all traffic to and from every pod in the namespace; the other policies add the allowed paths."
+  endpointSelector: {}
+  ingress:
+    - {}
+  egress:
+    - {}
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata: {name: allow-dns, namespace: kyverno}
+spec:
+  description: "Every pod may resolve names through CoreDNS."
+  endpointSelector: {}
+  egress:
+    - toEndpoints:
+        - matchLabels: {io.kubernetes.pod.namespace: kube-system, k8s-app: kube-dns}
+      toPorts:
+        - ports: [{port: "53", protocol: UDP}, {port: "53", protocol: TCP}]
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata: {name: allow-apiserver, namespace: kyverno}
+spec:
+  description: "Every Kyverno pod talks to the API server on 6443. Observed as destination 'kube-apiserver+remote-node'."
+  endpointSelector: {}
+  egress:
+    - toEntities: [kube-apiserver]
+      toPorts:
+        - ports: [{port: "6443", protocol: TCP}]
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata: {name: admission-from-apiserver, namespace: kyverno}
+spec:
+  description: "The API server calls the admission webhook on 9443. Observed as source identity 'remote-node'."
+  endpointSelector: {matchLabels: {app.kubernetes.io/component: admission-controller}}
+  ingress:
+    - fromEntities: [kube-apiserver, remote-node, host]
+      toPorts:
+        - ports: [{port: "9443", protocol: TCP}]

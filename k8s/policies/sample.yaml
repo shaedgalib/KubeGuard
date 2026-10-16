@@ -1,0 +1,69 @@
+# P2-U5: network policy for the namespace "sample" (frontend and backend behind the Gateway).
+# DRAFT proposed by the assistant on 2026-10-16 from the flows Hubble showed (make flows NS=sample).
+# The unit plan says the researcher writes these policies: review every rule, change what you disagree with,
+# and try the set in audit mode before enforcing it (docs/runbooks/network-security.md).
+#
+# Allowed, and why (everything else in and out of this namespace is dropped):
+#   - DNS from every pod to CoreDNS in kube-system (udp/tcp 53)
+#   - the Gateway (Cilium Envoy, identity "ingress") to the frontend on 8080: the only way in
+#   - the frontend to the backend on 8080: the page behind /api
+# Not allowed on purpose: backend to frontend, any call to the API server (the pods have no token and need no
+# API), anything to other namespaces, anything to the internet.
+# Probes from the local kubelet to a pod are always allowed by Cilium, so none are listed.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata: {name: default-deny, namespace: sample}
+spec:
+  description: "Deny all traffic to and from every pod in the namespace; the other policies add the allowed paths."
+  endpointSelector: {}
+  ingress:
+    - {}
+  egress:
+    - {}
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata: {name: allow-dns, namespace: sample}
+spec:
+  description: "Every pod may resolve names through CoreDNS."
+  endpointSelector: {}
+  egress:
+    - toEndpoints:
+        - matchLabels: {io.kubernetes.pod.namespace: kube-system, k8s-app: kube-dns}
+      toPorts:
+        - ports: [{port: "53", protocol: UDP}, {port: "53", protocol: TCP}]
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata: {name: frontend-from-gateway, namespace: sample}
+spec:
+  description: "The Gateway (Cilium Envoy) reaches the frontend on 8080. Observed as source identity 'ingress'."
+  endpointSelector: {matchLabels: {app: frontend}}
+  ingress:
+    - fromEntities: [ingress]
+      toPorts:
+        - ports: [{port: "8080", protocol: TCP}]
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata: {name: frontend-to-backend, namespace: sample}
+spec:
+  description: "The frontend calls the backend on 8080 (the /api path). This is the egress side."
+  endpointSelector: {matchLabels: {app: frontend}}
+  egress:
+    - toEndpoints:
+        - matchLabels: {app: backend}
+      toPorts:
+        - ports: [{port: "8080", protocol: TCP}]
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata: {name: backend-from-frontend, namespace: sample}
+spec:
+  description: "The backend accepts the frontend on 8080. This is the ingress side of frontend-to-backend."
+  endpointSelector: {matchLabels: {app: backend}}
+  ingress:
+    - fromEndpoints:
+        - matchLabels: {app: frontend}
+      toPorts:
+        - ports: [{port: "8080", protocol: TCP}]

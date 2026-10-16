@@ -1,0 +1,154 @@
+# P2-U5: network policy for the namespace "monitoring" (Prometheus, Grafana, the operator, kube-state-metrics).
+# DRAFT proposed by the assistant on 2026-10-16 from the flows Hubble showed (make flows NS=monitoring).
+# This is the most involved namespace: review it first in audit mode and expect one or two rounds of additions.
+#
+# Allowed:
+#   - DNS from every pod to CoreDNS
+#   - every pod to the API server on 6443 (service discovery, the Grafana sidecars, the operator, kube-state-metrics,
+#     and the Helm hook pods of an upgrade)
+#   - Prometheus scraping: the kubelets (10250) and node-exporters (9100) of all three nodes, the API server (6443),
+#     kube-state-metrics (8080, 8081), the operator (10250), Grafana (3000), CoreDNS (9153), and itself (9090, and the
+#     config reloader on 8080: the pod scrapes its own Service, so the traffic leaves and returns through its veth)
+#   - Grafana to Prometheus (9090)
+#   - the API server to Prometheus (9090), Grafana (3000) and the operator (10250): the Service proxy that
+#     make net-test-u7 uses, and the operator's admission webhook
+# node-exporter runs on the host network and is not a pod endpoint, so it has no rule here.
+# Node identities: a worker sees itself as "host", the other workers as "remote-node", and the control-plane node as
+# "remote-node" + "kube-apiserver". All three are listed wherever "any node" is meant.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata: {name: default-deny, namespace: monitoring}
+spec:
+  description: "Deny all traffic to and from every pod in the namespace; the other policies add the allowed paths."
+  endpointSelector: {}
+  ingress:
+    - {}
+  egress:
+    - {}
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata: {name: allow-dns, namespace: monitoring}
+spec:
+  description: "Every pod may resolve names through CoreDNS."
+  endpointSelector: {}
+  egress:
+    - toEndpoints:
+        - matchLabels: {io.kubernetes.pod.namespace: kube-system, k8s-app: kube-dns}
+      toPorts:
+        - ports: [{port: "53", protocol: UDP}, {port: "53", protocol: TCP}]
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata: {name: allow-apiserver, namespace: monitoring}
+spec:
+  description: "Every pod talks to the API server on 6443. Observed as destination 'kube-apiserver+remote-node'."
+  endpointSelector: {}
+  egress:
+    - toEntities: [kube-apiserver]
+      toPorts:
+        - ports: [{port: "6443", protocol: TCP}]
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata: {name: prometheus-scrapes, namespace: monitoring}
+spec:
+  description: "Prometheus scrapes the nodes, the API server and the monitoring components, and CoreDNS."
+  endpointSelector: {matchLabels: {app.kubernetes.io/name: prometheus}}
+  egress:
+    - toEntities: [host, remote-node, kube-apiserver]
+      toPorts:
+        - ports: [{port: "10250", protocol: TCP}, {port: "9100", protocol: TCP}, {port: "6443", protocol: TCP}]
+    - toEndpoints:
+        - matchLabels: {app.kubernetes.io/name: kube-state-metrics}
+      toPorts:
+        - ports: [{port: "8080", protocol: TCP}, {port: "8081", protocol: TCP}]
+    - toEndpoints:
+        - matchLabels: {app: kube-prometheus-stack-operator}
+      toPorts:
+        - ports: [{port: "10250", protocol: TCP}]
+    - toEndpoints:
+        - matchLabels: {app.kubernetes.io/name: grafana}
+      toPorts:
+        - ports: [{port: "3000", protocol: TCP}]
+    - toEndpoints:
+        - matchLabels: {io.kubernetes.pod.namespace: kube-system, k8s-app: kube-dns}
+      toPorts:
+        - ports: [{port: "9153", protocol: TCP}]
+    - toEndpoints:
+        - matchLabels: {app.kubernetes.io/name: prometheus}
+      toPorts:
+        - ports: [{port: "9090", protocol: TCP}, {port: "8080", protocol: TCP}]
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata: {name: prometheus-ingress, namespace: monitoring}
+spec:
+  description: "Grafana queries Prometheus; the API server proxies requests to it (make net-test-u7)."
+  endpointSelector: {matchLabels: {app.kubernetes.io/name: prometheus}}
+  ingress:
+    - fromEndpoints:
+        - matchLabels: {app.kubernetes.io/name: grafana}
+      toPorts:
+        - ports: [{port: "9090", protocol: TCP}]
+    - fromEntities: [kube-apiserver, remote-node]
+      toPorts:
+        - ports: [{port: "9090", protocol: TCP}]
+    - fromEndpoints:
+        - matchLabels: {app.kubernetes.io/name: prometheus}
+      toPorts:
+        - ports: [{port: "9090", protocol: TCP}, {port: "8080", protocol: TCP}]
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata: {name: grafana-to-prometheus, namespace: monitoring}
+spec:
+  description: "Grafana's data source: Prometheus on 9090. This is the egress side."
+  endpointSelector: {matchLabels: {app.kubernetes.io/name: grafana}}
+  egress:
+    - toEndpoints:
+        - matchLabels: {app.kubernetes.io/name: prometheus}
+      toPorts:
+        - ports: [{port: "9090", protocol: TCP}]
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata: {name: grafana-ingress, namespace: monitoring}
+spec:
+  description: "The API server proxies requests to Grafana on 3000 (make net-test-u7); Prometheus scrapes it."
+  endpointSelector: {matchLabels: {app.kubernetes.io/name: grafana}}
+  ingress:
+    - fromEntities: [kube-apiserver, remote-node]
+      toPorts:
+        - ports: [{port: "3000", protocol: TCP}]
+    - fromEndpoints:
+        - matchLabels: {app.kubernetes.io/name: prometheus}
+      toPorts:
+        - ports: [{port: "3000", protocol: TCP}]
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata: {name: kube-state-metrics-ingress, namespace: monitoring}
+spec:
+  description: "Prometheus scrapes kube-state-metrics on 8080 and its own telemetry on 8081."
+  endpointSelector: {matchLabels: {app.kubernetes.io/name: kube-state-metrics}}
+  ingress:
+    - fromEndpoints:
+        - matchLabels: {app.kubernetes.io/name: prometheus}
+      toPorts:
+        - ports: [{port: "8080", protocol: TCP}, {port: "8081", protocol: TCP}]
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata: {name: operator-ingress, namespace: monitoring}
+spec:
+  description: "Prometheus scrapes the operator on 10250; the API server calls its admission webhook there."
+  endpointSelector: {matchLabels: {app: kube-prometheus-stack-operator}}
+  ingress:
+    - fromEndpoints:
+        - matchLabels: {app.kubernetes.io/name: prometheus}
+      toPorts:
+        - ports: [{port: "10250", protocol: TCP}]
+    - fromEntities: [kube-apiserver, remote-node]
+      toPorts:
+        - ports: [{port: "10250", protocol: TCP}]

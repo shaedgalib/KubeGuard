@@ -1,0 +1,38 @@
+# P2-U5: network policy for the namespace "local-path-storage" (the volume provisioner). DRAFT proposed by the
+# assistant on 2026-10-16 from the flows Hubble showed; review it.
+#
+# Allowed: DNS, and the API server on 6443 (the provisioner watches claims and creates volumes and helper pods).
+# Everything else is dropped. The helper pods that make a directory on a node use no network.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata: {name: default-deny, namespace: local-path-storage}
+spec:
+  description: "Deny all traffic to and from every pod in the namespace; the other policies add the allowed paths."
+  endpointSelector: {}
+  ingress:
+    - {}
+  egress:
+    - {}
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata: {name: allow-dns, namespace: local-path-storage}
+spec:
+  description: "Every pod may resolve names through CoreDNS."
+  endpointSelector: {}
+  egress:
+    - toEndpoints:
+        - matchLabels: {io.kubernetes.pod.namespace: kube-system, k8s-app: kube-dns}
+      toPorts:
+        - ports: [{port: "53", protocol: UDP}, {port: "53", protocol: TCP}]
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata: {name: allow-apiserver, namespace: local-path-storage}
+spec:
+  description: "The provisioner talks to the API server on 6443."
+  endpointSelector: {}
+  egress:
+    - toEntities: [kube-apiserver]
+      toPorts:
+        - ports: [{port: "6443", protocol: TCP}]

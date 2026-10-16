@@ -1,0 +1,42 @@
+# P2-U5: network policy for the namespace "default". Nothing should run here; the P1 checks (make net-test-u6) put
+# a small web server and a volume test pod here. DRAFT proposed by the assistant on 2026-10-16; review it.
+#
+# Allowed:
+#   - DNS from every pod to CoreDNS
+#   - the load balancer test: a client outside the cluster (the host) and the Gateway reach lb-test on port 80.
+#     A client outside arrives as "world" when the pod is on the node that took the packet and as "remote-node"
+#     when another node forwarded it, so both are listed. Check the audit mode output and narrow this if you can.
+# Everything else is dropped, including all egress of lb-test and pvc-test except DNS.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata: {name: default-deny, namespace: default}
+spec:
+  description: "Deny all traffic to and from every pod in the namespace; the other policies add the allowed paths."
+  endpointSelector: {}
+  ingress:
+    - {}
+  egress:
+    - {}
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata: {name: allow-dns, namespace: default}
+spec:
+  description: "Every pod may resolve names through CoreDNS."
+  endpointSelector: {}
+  egress:
+    - toEndpoints:
+        - matchLabels: {io.kubernetes.pod.namespace: kube-system, k8s-app: kube-dns}
+      toPorts:
+        - ports: [{port: "53", protocol: UDP}, {port: "53", protocol: TCP}]
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata: {name: lb-test-from-outside, namespace: default}
+spec:
+  description: "The P1 load balancer and Gateway test: lb-test answers on port 80 to the host, other nodes and the Gateway."
+  endpointSelector: {matchLabels: {app: lb-test}}
+  ingress:
+    - fromEntities: [world, remote-node, host, ingress]
+      toPorts:
+        - ports: [{port: "80", protocol: TCP}]
