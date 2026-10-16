@@ -21,7 +21,7 @@ Five commands run the whole lab. They are thin wrappers over the targets of the 
 5. Gateway API CRDs, then Cilium and Hubble (the nodes become `Ready`).
 6. Load balancer pool and L2 policy, local-path storage.
 7. Monitoring: Grafana admin Secret (a new random password; saved to `~/.config/kubeguard/grafana-admin-password`), then Prometheus and Grafana.
-8. Sample app.
+8. Kyverno and its three policies ([access-control.md](access-control.md); Kyverno images are pulled in the internet window), then the sample app, then the Pod Security labels and the default service account settings.
 9. Checks: Cilium status; the storage, load balancer and Gateway test of P1-U6 and a request to each address from the host; the monitoring test (U7); the sample app and Hubble flows (U8); the hardening tests (`make test-hardening`).
 
 A failing stage stops the run, prints the stage times so far and names the stage. Fix the cause and run `make cluster` again: stages that are done change nothing.
