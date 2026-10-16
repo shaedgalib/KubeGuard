@@ -2,7 +2,7 @@
 # Tests for the hardening controls (P2). Each test tries the bad thing and passes only when it is refused,
 # or reads the effective setting from the running cluster. P2-U10 collects them under: make test-hardening
 # Usage: test.sh [all | <test> ...]
-# Tests: anonymous external-ips profiling files kubelet-tls tls pid-limit seccomp etcd-encryption audit
+# Tests: anonymous external-ips profiling files kubelet-tls tls pid-limit seccomp etcd-encryption audit rbac psa kyverno
 # Test pods use busybox:latest, which is already on both workers (no pull, so this also runs isolated).
 set -uo pipefail
 cd "$(dirname "$0")/../.."
@@ -38,11 +38,11 @@ ns_up() {
   k label namespace $NS pod-security.kubernetes.io/enforce=baseline --overwrite >/dev/null
   NS_MADE=1
 }
-AUDIT_TAGS=()   # probe namespaces made by the audit test; removed at exit even when a step in between failed
+TEMP_NS=()   # namespaces made by single tests (audit probe, policy tests); removed at exit even when a step in between failed
 cleanup() {
   local t
   [ $NS_MADE = 1 ] && k delete namespace $NS --ignore-not-found --wait=false >/dev/null 2>&1
-  for t in "${AUDIT_TAGS[@]}"; do k delete namespace "$t" --ignore-not-found --wait=false >/dev/null 2>&1; done
+  for t in "${TEMP_NS[@]}"; do k delete namespace "$t" --ignore-not-found --wait=false >/dev/null 2>&1; done
   return 0
 }
 trap cleanup EXIT
@@ -133,8 +133,22 @@ t_tls() {
 probe_pod() {  # probe_pod <pod> <worker> <shell command>
   ns_up
   k -n $NS delete pod "$1" --ignore-not-found --wait=true >/dev/null 2>&1
-  k -n $NS run "$1" --image=$IMAGE --image-pull-policy=IfNotPresent --restart=Never \
-    --overrides="{\"spec\":{\"nodeName\":\"$2\"}}" --command -- sh -c "$3" >/dev/null 2>&1 || return 1
+  k -n $NS apply -f - >/dev/null 2>&1 <<EOF || return 1
+apiVersion: v1
+kind: Pod
+metadata: {name: $1}
+spec:
+  nodeName: $2
+  restartPolicy: Never
+  containers:
+    - name: probe
+      image: $IMAGE
+      imagePullPolicy: IfNotPresent
+      command: [sh, -c, "$3"]
+      resources:
+        requests: {cpu: 10m, memory: 8Mi}
+        limits: {cpu: 50m, memory: 32Mi}
+EOF
   k -n $NS wait --for=condition=Ready pod/"$1" --timeout=90s >/dev/null 2>&1
 }
 
@@ -192,7 +206,7 @@ t_audit() {
   echo "== API audit log (CIS 1.2.16 to 1.2.19, 3.2.1, 3.2.2)"
   ns_up
   local tag="audit-probe-$RANDOM$RANDOM" value="kg-audit-secret-$RANDOM$RANDOM" log=/var/log/kubernetes/audit/audit.log lvl hits
-  AUDIT_TAGS+=("$tag")
+  TEMP_NS+=("$tag")
   k create namespace "$tag" >/dev/null && k -n $NS create secret generic "$tag" --from-literal=value="$value" >/dev/null \
     && k -n $NS get secret "$tag" >/dev/null && k delete namespace "$tag" --wait=false >/dev/null
   sleep 3
@@ -210,7 +224,115 @@ t_audit() {
   info "audit log size: $(node "$CP" "sudo du -sh $(dirname $log) | cut -f1")"
 }
 
-ALL=(anonymous external-ips profiling files kubelet-tls tls pid-limit seccomp etcd-encryption audit)
+t_rbac() {
+  echo "== RBAC least privilege (CIS 5.1.1 to 5.1.13, P2-U3)"
+  local out got sa ns
+  out=$(k get clusterroles,roles -A -o json | jq -r '.items[]
+        | select((.metadata.labels["kubernetes.io/bootstrapping"] // "") != "rbac-defaults")
+        | select(.metadata.name | test("^(system|kubeadm):") | not)
+        | select([.rules[]? | select((.verbs | index("*")) or (.resources | index("*")) or (.apiGroups | index("*")))] | length > 0)
+        | .kind + "/" + (.metadata.namespace // "-") + "/" + .metadata.name')
+  [ -z "$out" ] && ok "no role with a wildcard exists outside the built-in roles" || bad "roles with a wildcard: $(paste -sd' ' <<<"$out")"
+  out=$(k get clusterrolebindings,rolebindings -A -o json | jq -r '.items[] | select(.roleRef.name == "cluster-admin") | .subjects[]? | .kind + ":" + .name' | sort | paste -sd' ')
+  [ "$out" = "Group:kubeadm:cluster-admins Group:system:masters" ] && ok "cluster-admin is bound to system:masters and kubeadm:cluster-admins only" || bad "cluster-admin is bound to: $out"
+  for sa in monitoring-grafana monitoring-kube-state-metrics; do
+    got=$(k auth can-i list secrets --all-namespaces --as=system:serviceaccount:monitoring:$sa 2>&1)
+    [ "$got" = no ] && ok "$sa cannot list Secrets in all namespaces" || bad "$sa can list Secrets in all namespaces (answer: $got)"
+  done
+  for ns in sample default; do
+    got=$(k -n $ns get serviceaccount default -o jsonpath='{.automountServiceAccountToken}' 2>/dev/null)
+    [ "$got" = false ] && ok "the default service account in $ns does not mount an API token" || bad "the default service account in $ns mounts an API token (automountServiceAccountToken: '${got:-unset}')"
+  done
+}
+
+# A Pod manifest for the policy tests. Arguments: name, image, privileged (true or false), limits (true or false).
+pod_yaml() {
+  cat <<EOF
+apiVersion: v1
+kind: Pod
+metadata: {name: $1}
+spec:
+  containers:
+    - name: c
+      image: $2
+      command: [sleep, "1"]
+$([ "$3" = true ] && echo '      securityContext: {privileged: true}')
+$([ "$4" = true ] && echo '      resources: {requests: {cpu: 10m, memory: 8Mi}, limits: {cpu: 50m, memory: 32Mi}}')
+EOF
+}
+# The manifest is passed as an argument, not through a pipe: ok and bad must run in this shell, or a failure would be lost.
+# expect_denied <label> <pattern> <namespace> <manifest>: a server-side dry run must be refused and the message must match.
+expect_denied() {
+  local out; out=$(k -n "$3" apply --dry-run=server -f - 2>&1 <<<"$4")
+  if grep -q "$2" <<<"$out"; then ok "$1"; else bad "$1: expected a refusal naming '$2', got: ${out:0:170}"; fi
+}
+# expect_accepted <label> <namespace> <manifest>
+expect_accepted() {
+  local out; out=$(k -n "$2" apply --dry-run=server -f - 2>&1 <<<"$3")
+  if grep -q 'server dry run' <<<"$out" && ! grep -qiE 'error|forbidden|denied' <<<"$out"; then ok "$1"; else bad "$1: not accepted: ${out:0:170}"; fi
+}
+
+t_psa() {
+  echo "== Pod Security Admission (P2-U4)"
+  local l img=docker.io/library/busybox:1.37 m
+  while read -r l; do
+    case $l in PASS*) ok "${l#PASS   }" ;; FAIL*) bad "${l#FAIL   }" ;; esac
+  done < <(infra/access/pod-security.sh check)
+  expect_denied "a privileged pod is rejected in the restricted namespace sample" 'violates PodSecurity "restricted' sample "$(pod_yaml psa-privileged $img true true)"
+  expect_denied "a pod without the restricted settings is rejected in sample" 'violates PodSecurity "restricted' sample "$(pod_yaml psa-plain $img false true)"
+  expect_denied "a hostPath pod is rejected in default (baseline)" 'violates PodSecurity "baseline' default "$(pod_yaml psa-hostpath $img false true; printf '  volumes: [{name: h, hostPath: {path: /etc}}]\n')"
+  m=$(cat <<'EOF'
+apiVersion: v1
+kind: Pod
+metadata: {name: psa-compliant}
+spec:
+  securityContext: {runAsNonRoot: true, runAsUser: 1000, seccompProfile: {type: RuntimeDefault}}
+  containers:
+    - name: c
+      image: docker.io/library/busybox:1.37
+      command: [sleep, "1"]
+      securityContext: {allowPrivilegeEscalation: false, capabilities: {drop: [ALL]}}
+      resources: {requests: {cpu: 10m, memory: 8Mi}, limits: {cpu: 50m, memory: 32Mi}}
+EOF
+)
+  expect_accepted "a pod that follows the restricted profile is accepted in sample" sample "$m"
+}
+
+t_kyverno() {
+  echo "== Kyverno policies (P2-U7)"
+  local ns=hardening-policy-test img=docker.io/library/busybox:1.37 m
+  k get namespace $ns >/dev/null 2>&1 || k create namespace $ns >/dev/null
+  TEMP_NS+=("$ns")
+  expect_denied "a privileged pod is refused by disallow-privileged-containers" disallow-privileged-containers $ns "$(pod_yaml k-privileged $img true true)"
+  expect_denied "a pod without limits is refused by require-resource-limits" require-resource-limits $ns "$(pod_yaml k-nolimits $img false false)"
+  expect_denied "an image from evil.example.com is refused by restrict-image-registries" restrict-image-registries $ns "$(pod_yaml k-registry evil.example.com/app:1 false true)"
+  expect_denied "an image from ghcr.io (not on the list) is refused by restrict-image-registries" restrict-image-registries $ns "$(pod_yaml k-registry2 ghcr.io/example/app:1 false true)"
+  m=$(cat <<'EOF'
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: k-autogen}
+spec:
+  replicas: 1
+  selector: {matchLabels: {app: k-autogen}}
+  template:
+    metadata: {labels: {app: k-autogen}}
+    spec:
+      containers:
+        - name: c
+          image: docker.io/library/busybox:1.37
+          command: [sleep, "1"]
+          securityContext: {privileged: true}
+          resources: {requests: {cpu: 10m, memory: 8Mi}, limits: {cpu: 50m, memory: 32Mi}}
+EOF
+)
+  expect_denied "a Deployment with a privileged container is refused when it is created (autogen)" disallow-privileged-containers $ns "$m"
+  expect_accepted "a pod with limits, no privilege and an allowed registry is accepted" $ns "$(pod_yaml k-ok $img false true)"
+  expect_accepted "an image name without a registry (docker.io) is accepted" $ns "$(pod_yaml k-ok2 nginx:1.27-alpine false true)"
+  expect_accepted "an image from quay.io is accepted" $ns "$(pod_yaml k-ok3 quay.io/cilium/cilium:v1.20.2 false true)"
+  expect_accepted "the system namespace monitoring is outside the policies (documented exclusion)" monitoring "$(pod_yaml k-system $img false false)"
+}
+
+ALL=(anonymous external-ips profiling files kubelet-tls tls pid-limit seccomp etcd-encryption audit rbac psa kyverno)
 want=("$@"); [ ${#want[@]} -eq 0 ] || [ "${want[0]}" = all ] && want=("${ALL[@]}")
 for t in "${want[@]}"; do
   fn="t_${t//-/_}"
