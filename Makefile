@@ -9,7 +9,7 @@ GATEWAY_API_VERSION := $(strip $(GATEWAY_API))
 LOCAL_PATH_VERSION := $(strip $(LOCAL_PATH))
 KUBE_PROMETHEUS_STACK_VERSION := $(strip $(KUBE_PROMETHEUS_STACK))
 KYVERNO_VERSION := $(strip $(KYVERNO))
-.PHONY: help isolated-network-up isolated-network-down isolated-network-test internet-network-up internet-network-down template-vm-create template-vm-snapshot template-vm-restore-test template-vm-destroy vms vms-status vms-test vms-isolate vms-attach-internet vms-snapshot vms-restore vms-destroy ansible-setup ansible-inventory ansible-apply ansible-test kubectl cilium-install cilium-status cilium-uninstall hubble-ui gateway-api-crds cilium-restart cilium-lb storage-install net-test-u6 sample-app-install sample-app-remove net-test-u8 vms-resize monitoring-secret monitoring-install monitoring-status monitoring-uninstall grafana-password grafana-ui net-test-u7 etcd-snapshot etcd-restore drill-etcd drill-node-drain drill-node-fail drill-node-rejoin up down reset cluster rebuild kubescape-install scan scan-summary scan-compare test-hardening hardening-evidence audit-log-size rbac-audit access-evidence access-apply psa-check kyverno-install kyverno-policies kyverno-status drill-kyverno
+.PHONY: help isolated-network-up isolated-network-down isolated-network-test internet-network-up internet-network-down template-vm-create template-vm-snapshot template-vm-restore-test template-vm-destroy vms vms-status vms-test vms-isolate vms-attach-internet vms-snapshot vms-restore vms-destroy ansible-setup ansible-inventory ansible-apply ansible-test kubectl cilium-install cilium-status cilium-uninstall hubble-ui gateway-api-crds cilium-restart cilium-lb storage-install net-test-u6 sample-app-install sample-app-remove net-test-u8 vms-resize monitoring-secret monitoring-install monitoring-status monitoring-uninstall grafana-password grafana-ui net-test-u7 etcd-snapshot etcd-restore drill-etcd drill-node-drain drill-node-fail drill-node-rejoin up down reset cluster rebuild kubescape-install scan scan-summary scan-compare test-hardening hardening-evidence audit-log-size rbac-audit access-evidence access-apply psa-check kyverno-install kyverno-policies kyverno-status drill-kyverno flows policies-apply policies-remove policies-audit-on policies-audit-off policies-status ztunnel-secrets network-evidence
 
 help: ## List targets
 	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-28s %s\n", $$1, $$2}'
@@ -229,7 +229,7 @@ scan-compare: ## Show what changed between two saved scans: make scan-compare BE
 	infra/scans/summarize.py --compare $(BEFORE) $(AFTER)
 
 # P2-U2 / P2-U6: tests of the hardening controls (infra/hardening/test.sh). P2-U10 makes this the one command for all controls.
-test-hardening: ## Run the hardening tests, all or one: make test-hardening [CONTROL=anonymous|external-ips|profiling|files|kubelet-tls|tls|pid-limit|seccomp|etcd-encryption|audit|rbac|psa|kyverno]
+test-hardening: ## Run the hardening tests, all or one: make test-hardening [CONTROL=anonymous|external-ips|profiling|files|kubelet-tls|tls|pid-limit|seccomp|etcd-encryption|audit|rbac|psa|kyverno|netpol|mtls]
 	PROJECT_KUBECONFIG=$(PROJECT_KUBECONFIG) infra/hardening/test.sh $(or $(CONTROL),all)
 
 hardening-evidence: ## P2-U6: read-only evidence for encryption at rest and the audit log (no secret values are printed)
@@ -272,3 +272,30 @@ kyverno-status: ## Show the Kyverno pods, release and policies
 
 drill-kyverno: ## P2-U7 drill: stop Kyverno, show the fail-closed behaviour and the unblock step, start it again (about 2 minutes)
 	PROJECT_KUBECONFIG=$(PROJECT_KUBECONFIG) infra/drills/kyverno.sh drill
+
+# P2-U5 and P2-U8: network policies and mutual TLS. Policies are in k8s/policies/ (one file per namespace);
+# NS="sample kyverno" limits a target to some namespaces. Method: docs/runbooks/network-security.md
+flows: ## P2-U5: who talks to whom, from Hubble: make flows [SINCE=5m] [NS=<namespace>] [VERDICT=AUDIT|DROPPED]
+	PROJECT_KUBECONFIG=$(PROJECT_KUBECONFIG) python3 infra/network/flows.py --since $(or $(SINCE),5m) $(if $(NS),--namespace $(NS)) $(if $(VERDICT),--verdict $(VERDICT))
+
+policies-apply: ## P2-U5: create or update the network policies [NS="sample kyverno"]
+	PROJECT_KUBECONFIG=$(PROJECT_KUBECONFIG) infra/network/policies.sh apply $(NS)
+
+policies-remove: ## P2-U5: delete the network policies, which opens the namespaces again [NS="sample kyverno"]
+	PROJECT_KUBECONFIG=$(PROJECT_KUBECONFIG) infra/network/policies.sh remove $(NS)
+
+policies-audit-on: ## P2-U5: audit mode for the pods that run now: drops are allowed and shown as AUDIT [NS=...]
+	PROJECT_KUBECONFIG=$(PROJECT_KUBECONFIG) infra/network/policies.sh audit on $(NS)
+
+policies-audit-off: ## P2-U5: audit mode off, so the policies are enforced [NS=...]
+	PROJECT_KUBECONFIG=$(PROJECT_KUBECONFIG) infra/network/policies.sh audit off $(NS)
+
+policies-status: ## P2-U5: policies, enforcement and audit mode per pod
+	PROJECT_KUBECONFIG=$(PROJECT_KUBECONFIG) infra/network/policies.sh status
+
+ztunnel-secrets: ## P2-U8: make the CA and bootstrap keys for ztunnel and store them as a Secret (run before cilium-install)
+	PROJECT_KUBECONFIG=$(PROJECT_KUBECONFIG) infra/network/ztunnel-secrets.sh
+
+network-evidence: ## P2-U5, P2-U8: save read-only evidence in ~/.local/share/kubeguard/evidence/p2-network-security
+	PROJECT_KUBECONFIG=$(PROJECT_KUBECONFIG) infra/network/evidence.sh
+

@@ -2,7 +2,7 @@
 # Tests for the hardening controls (P2). Each test tries the bad thing and passes only when it is refused,
 # or reads the effective setting from the running cluster. P2-U10 collects them under: make test-hardening
 # Usage: test.sh [all | <test> ...]
-# Tests: anonymous external-ips profiling files kubelet-tls tls pid-limit seccomp etcd-encryption audit rbac psa kyverno
+# Tests: anonymous external-ips profiling files kubelet-tls tls pid-limit seccomp etcd-encryption audit rbac psa kyverno netpol mtls
 # Test pods use busybox:latest, which is already on both workers (no pull, so this also runs isolated).
 set -uo pipefail
 cd "$(dirname "$0")/../.."
@@ -332,7 +332,163 @@ EOF
   expect_accepted "the system namespace monitoring is outside the policies (documented exclusion)" monitoring "$(pod_yaml k-system $img false false)"
 }
 
-ALL=(anonymous external-ips profiling files kubelet-tls tls pid-limit seccomp etcd-encryption audit rbac psa kyverno)
+# ---- P2-U5: network policies --------------------------------------------------------------------------------
+# dropped_edge <destination> <source> <protocol/port>: has Hubble recorded a dropped flow for this edge in the last two
+# minutes? The destination and source are matched as names that contain the given text.
+dropped_edge() {
+  python3 infra/network/flows.py --since 2m --verdict DROPPED --tsv 2>/dev/null \
+    | awk -F'\t' -v d="$1" -v s="$2" -v p="$3" 'index($1, d) && index($2, s) && $3 == p {f = 1} END {exit !f}'
+}
+# blocked <label> <destination> <source> <protocol/port> <command...>: the connection attempt must fail, and Hubble must
+# show the drop, so a failure for another reason (no DNS, no route) does not count as a pass.
+blocked() {
+  local label=$1 dst=$2 src=$3 port=$4; shift 4
+  if "$@" >/dev/null 2>&1; then bad "$label: the connection succeeded"; return; fi
+  sleep 2
+  if dropped_edge "$dst" "$src" "$port"; then ok "$label: dropped by policy (Hubble: $src -> $dst $port)"
+  else bad "$label: the connection failed, but Hubble shows no dropped flow $src -> $dst $port (is audit mode still on?)"; fi
+}
+
+t_netpol() {
+  echo "== Network policies: unlisted traffic is dropped, listed traffic passes (P2-U5)"
+  local ns=hardening-netpol-test f ns_of fe be gw out feip beip grip dnsip expected got
+  # every policy in k8s/policies/ exists in the cluster
+  for f in k8s/policies/*.yaml; do
+    ns_of=$(basename "$f" .yaml)
+    expected=$(python3 -c 'import sys,yaml; print(" ".join(sorted(d["metadata"]["name"] for d in yaml.safe_load_all(open(sys.argv[1])) if d)))' "$f")
+    got=$(k -n "$ns_of" get ciliumnetworkpolicies -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' 2>/dev/null | sort | paste -sd' ')
+    [ "$got" = "$expected" ] && ok "$ns_of: all policies of $f are in the cluster" || bad "$ns_of: the cluster has '$got', the file has '$expected'"
+  done
+  fe=$(k -n sample get pod -l app=frontend -o jsonpath='{.items[0].metadata.name}' 2>/dev/null)
+  be=$(k -n sample get pod -l app=backend -o jsonpath='{.items[0].metadata.name}' 2>/dev/null)
+  [ -n "$fe" ] && [ -n "$be" ] || { bad "the sample app is not running"; return; }
+  feip=$(k -n sample get pod "$fe" -o jsonpath='{.status.podIP}'); beip=$(k -n sample get pod "$be" -o jsonpath='{.status.podIP}')
+  grip=$(k -n monitoring get pod -l app.kubernetes.io/name=grafana -o jsonpath='{.items[0].status.podIP}')
+
+  # listed traffic passes
+  gw=$(k -n sample get gateway sample-gw -o jsonpath='{.status.addresses[0].value}' 2>/dev/null)
+  out=$(curl -s -m 5 "http://$gw/"); [ "$out" = "frontend ok" ] && ok "listed: host -> Gateway -> frontend answers" || bad "listed: the frontend through the Gateway answered '$out'"
+  out=$(curl -s -m 5 "http://$gw/api"); [ "$out" = "backend ok" ] && ok "listed: host -> Gateway -> frontend -> backend answers (/api)" || bad "listed: /api through the Gateway answered '$out'"
+  out=$(k -n sample exec "$fe" -c nginx -- wget -q -O- -T 3 http://backend/ 2>&1); [ "$out" = "backend ok" ] && ok "listed: frontend -> backend by name (DNS and the frontend/backend rules)" || bad "listed: frontend -> backend answered '$out'"
+
+  # the default namespace: the P1 load balancer and Gateway test pod answers a client outside the cluster
+  k apply -f k8s/tests/lb-test.yaml -f k8s/tests/gateway-test.yaml >/dev/null 2>&1
+  if k -n default rollout status deployment/lb-test --timeout=150s >/dev/null 2>&1; then
+    local lb gwt
+    for i in $(seq 1 24); do
+      lb=$(k -n default get svc lb-test -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null)
+      gwt=$(k -n default get gateway gw-test -o jsonpath='{.status.addresses[0].value}' 2>/dev/null)
+      [ -n "$lb" ] && [ -n "$gwt" ] && break; sleep 5
+    done
+    for i in $(seq 1 12); do [ "$(curl -s -o /dev/null -m 5 -w '%{http_code}' "http://$lb/")" = 200 ] && break; sleep 5; done
+    [ "$(curl -s -o /dev/null -m 5 -w '%{http_code}' "http://$lb/")" = 200 ] && ok "listed: host -> LoadBalancer $lb -> lb-test in default answers 200" || bad "listed: the LoadBalancer $lb did not answer 200"
+    for i in $(seq 1 12); do [ "$(curl -s -o /dev/null -m 5 -w '%{http_code}' "http://$gwt/")" = 200 ] && break; sleep 5; done
+    [ "$(curl -s -o /dev/null -m 5 -w '%{http_code}' "http://$gwt/")" = 200 ] && ok "listed: host -> Gateway $gwt -> lb-test in default answers 200" || bad "listed: the Gateway $gwt did not answer 200"
+  else
+    bad "the lb-test pod in default did not become ready"
+  fi
+  k delete -f k8s/tests/gateway-test.yaml -f k8s/tests/lb-test.yaml --ignore-not-found >/dev/null 2>&1
+
+  # unlisted traffic is dropped
+  blocked "unlisted: backend -> frontend" sample/frontend sample/backend tcp/8080 \
+    k -n sample exec "$be" -c nginx -- wget -q -O- -T 3 "http://$feip:8080/"
+  blocked "unlisted: frontend -> Grafana in another namespace" monitoring/grafana sample/frontend tcp/3000 \
+    k -n sample exec "$fe" -c nginx -- wget -q -O- -T 3 "http://$grip:3000/"
+  blocked "unlisted: frontend -> the Kubernetes API" kube-apiserver sample/frontend tcp/6443 \
+    k -n sample exec "$fe" -c nginx -- nc -z -w 3 10.96.0.1 443
+  k create namespace $ns >/dev/null 2>&1 || true
+  TEMP_NS+=("$ns")
+  k -n $ns apply -f - >/dev/null 2>&1 <<EOF
+apiVersion: v1
+kind: Pod
+metadata: {name: netpol-client, labels: {app: netpol-client}}
+spec:
+  containers:
+    - name: c
+      image: docker.io/library/busybox:1.37
+      command: [sleep, "600"]
+      resources: {requests: {cpu: 10m, memory: 8Mi}, limits: {cpu: 50m, memory: 32Mi}}
+EOF
+  if k -n $ns wait --for=condition=Ready pod/netpol-client --timeout=90s >/dev/null 2>&1; then
+    dnsip=$(k -n kube-system get pod -l k8s-app=kube-dns -o jsonpath='{.items[0].status.podIP}')
+    out=$(k -n $ns exec netpol-client -- wget -q -O- -T 3 "http://$dnsip:8080/health" 2>&1)
+    [ "$out" = OK ] && ok "control: a client in a namespace without policies can reach CoreDNS (kube-system has no policy), so the next check measures the policies" || bad "control: the unpoliced client cannot reach CoreDNS either: ${out:0:100}"
+    blocked "unlisted: another namespace -> sample backend" sample/backend $ns/netpol-client tcp/8080 \
+      k -n $ns exec netpol-client -- wget -q -O- -T 3 "http://$beip:8080/"
+  else
+    bad "the client pod in $ns did not start"
+  fi
+}
+
+# ---- P2-U8: mutual TLS between two services (Cilium ztunnel) -------------------------------------------------
+t_mtls() {
+  echo "== Mutual TLS between two services with Cilium ztunnel (P2-U8)"
+  local ns=mtls-demo plain=hardening-mtls-plain marker="mtls-demo server ok" ready sip cap out n1 n2 i
+  [ "$(k -n kube-system get configmap cilium-config -o jsonpath='{.data.enable-ztunnel}' 2>/dev/null)" = true ] \
+    && ok "ztunnel encryption is enabled in the Cilium configuration" \
+    || { bad "ztunnel encryption is not enabled (make ztunnel-secrets, make cilium-install, make cilium-restart)"; return; }
+  ready=$(k -n kube-system get daemonset ztunnel-cilium -o jsonpath='{.status.numberReady}/{.status.desiredNumberScheduled}' 2>/dev/null)
+  if [ -n "$ready" ] && [ "${ready%/*}" = "${ready#*/}" ] && [ "${ready%/*}" != 0 ]; then ok "the ztunnel pods are ready on every node that can run them ($ready)"
+  else bad "the ztunnel pods are not ready ($ready)"; return; fi
+
+  k apply -f k8s/mtls/demo.yaml >/dev/null || { bad "could not create the demo"; return; }
+  TEMP_NS+=("$ns" "$plain")
+  k -n $ns rollout status deployment/server --timeout=150s >/dev/null 2>&1 && k -n $ns rollout status deployment/client --timeout=150s >/dev/null 2>&1 \
+    || { bad "the demo pods did not become ready"; return; }
+  k create namespace $plain >/dev/null 2>&1 || true
+  k -n $plain apply -f - >/dev/null 2>&1 <<EOF
+apiVersion: v1
+kind: Pod
+metadata: {name: plain-client}
+spec:
+  containers:
+    - name: c
+      image: docker.io/library/busybox:1.37
+      command: [sleep, "900"]
+      resources: {requests: {cpu: 10m, memory: 8Mi}, limits: {cpu: 50m, memory: 32Mi}}
+EOF
+  k -n $plain wait --for=condition=Ready pod/plain-client --timeout=90s >/dev/null 2>&1 || { bad "the plain client pod did not start"; return; }
+  sip=$(rows | awk '$1=="kg-worker-1" {print $3}')
+
+  # capture <file>: tcpdump for ten seconds on the server's node, on the device that carries pod traffic between nodes,
+  # while the client asks the server five times and the plain client asks once.
+  capture() {
+    node "$sip" "sudo timeout 10 tcpdump -i cilium_vxlan -nn -A -l 'tcp port 8080 or tcp port 15008' 2>/dev/null" > "$1" &
+    local pid=$! j
+    sleep 3
+    for j in 1 2 3 4 5; do k -n $ns exec deploy/client -- wget -q -O- -T 3 http://server/ 2>/dev/null; done > "$1.client"
+    k -n $plain exec plain-client -- wget -q -O- -T 3 http://server.$ns.svc/ > "$1.plain" 2>/dev/null
+    wait $pid
+  }
+
+  echo "-- before enrolment (control: the capture method sees plaintext)"
+  cap=$(mktemp)
+  capture "$cap"
+  [ "$(tail -n 1 "$cap.client")" = "$marker" ] && ok "the client reaches the server" || bad "the client got '$(tail -n 1 "$cap.client")'"
+  [ "$(cat "$cap.plain")" = "$marker" ] && ok "a client in another namespace reaches the server as well" || bad "the plain client got '$(cat "$cap.plain")'"
+  n1=$(grep -c "$marker" "$cap"); [ "$n1" -gt 0 ] && ok "the capture on the server's node shows the page in clear text ($n1 lines)" || bad "the capture did not show the clear-text page: the method cannot prove anything"
+  rm -f "$cap" "$cap.client" "$cap.plain"
+
+  echo "-- namespace $ns enrolled"
+  k label namespace $ns io.cilium/mtls-enabled=true --overwrite >/dev/null
+  sleep 12
+  cap=$(mktemp)
+  capture "$cap"
+  [ "$(tail -n 1 "$cap.client")" = "$marker" ] && ok "the enrolled client still reaches the enrolled server" || bad "the enrolled client got '$(tail -n 1 "$cap.client")'"
+  n1=$(grep -c "$marker" "$cap"); n2=$(grep -cE '\.15008[: >]|\.15008$' "$cap")
+  [ "$n1" = 0 ] && ok "the capture no longer shows the page in clear text" || bad "the page is still visible on the wire ($n1 lines): the traffic is not encrypted"
+  [ "$n2" -gt 0 ] && ok "the capture shows the mutual TLS tunnel on port 15008 ($n2 lines)" || bad "no traffic on tunnel port 15008 in the capture"
+  out=$(cat "$cap.plain"); [ -z "$out" ] && ok "a client that is not enrolled cannot reach the enrolled server" || bad "a client that is not enrolled got '$out' from the enrolled server"
+  rm -f "$cap" "$cap.client" "$cap.plain"
+
+  echo "-- namespace $ns disenrolled"
+  k label namespace $ns io.cilium/mtls-enabled- >/dev/null 2>&1
+  sleep 10
+  out=$(k -n $plain exec plain-client -- wget -q -O- -T 3 http://server.$ns.svc/ 2>/dev/null)
+  [ "$out" = "$marker" ] && ok "after disenrolment the plain client reaches the server again" || bad "after disenrolment the plain client got '$out'"
+}
+
+ALL=(anonymous external-ips profiling files kubelet-tls tls pid-limit seccomp etcd-encryption audit rbac psa kyverno netpol mtls)
 want=("$@"); [ ${#want[@]} -eq 0 ] || [ "${want[0]}" = all ] && want=("${ALL[@]}")
 for t in "${want[@]}"; do
   fn="t_${t//-/_}"

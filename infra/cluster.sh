@@ -5,7 +5,8 @@
 #   down     shut the node VMs down gracefully (frees their RAM; networks and disks stay)
 #   reset    DESTROY the node VMs and create fresh ones from kg-template-vm (needs CONFIRM=yes)
 #   cluster  from clean VMs to the full cluster: Kubernetes, Cilium, load balancer, Gateway API,
-#            storage, monitoring, Kyverno and its policies, sample app, Pod Security labels, the acceptance
+#            storage, monitoring, Kyverno and its policies, sample app, Pod Security labels, network policies,
+#            the ztunnel key material (before Cilium), the acceptance
 #            checks of U5 to U8 and the hardening
 #            tests of Phase 2 (the hardening itself is part of the Ansible stage)
 #   rebuild  reset + cluster, and the total time against the 40 minute target (needs CONFIRM=yes)
@@ -117,6 +118,7 @@ do_cluster() {
   [ -x .venv/bin/ansible-playbook ] || stage "install Ansible (.venv)" make ansible-setup
   stage "Kubernetes (Ansible: common, containerd, packages, kubeadm init and join)" make ansible-apply
   stage "Gateway API CRDs"        make gateway-api-crds
+  stage "ztunnel key material (Secret)" make ztunnel-secrets
   stage "Cilium and Hubble"       make cilium-install
   stage "nodes Ready"             wait_nodes_ready
   stage "load balancer pool and L2 policy" make cilium-lb
@@ -128,6 +130,7 @@ do_cluster() {
   stage "Kyverno policies"        make kyverno-policies
   stage "sample app"              make sample-app-install
   stage "Pod Security labels and default service accounts" make access-apply
+  stage "Network policies (default-deny and allows)" make policies-apply
   stage "check: Cilium status"    make cilium-status
   stage "check: storage, load balancer, Gateway (U6)" make net-test-u6
   stage "check: load balancer and Gateway answer from the host" check_lb_and_gateway
