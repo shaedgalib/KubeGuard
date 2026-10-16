@@ -8,7 +8,8 @@ CILIUM_VERSION := $(strip $(CILIUM))
 GATEWAY_API_VERSION := $(strip $(GATEWAY_API))
 LOCAL_PATH_VERSION := $(strip $(LOCAL_PATH))
 KUBE_PROMETHEUS_STACK_VERSION := $(strip $(KUBE_PROMETHEUS_STACK))
-.PHONY: help isolated-network-up isolated-network-down isolated-network-test internet-network-up internet-network-down template-vm-create template-vm-snapshot template-vm-restore-test template-vm-destroy vms vms-status vms-test vms-isolate vms-attach-internet vms-snapshot vms-restore vms-destroy ansible-setup ansible-inventory ansible-apply ansible-test kubectl cilium-install cilium-status cilium-uninstall hubble-ui gateway-api-crds cilium-restart cilium-lb storage-install net-test-u6 sample-app-install sample-app-remove net-test-u8 vms-resize monitoring-secret monitoring-install monitoring-status monitoring-uninstall grafana-password grafana-ui net-test-u7 etcd-snapshot etcd-restore drill-etcd drill-node-drain drill-node-fail drill-node-rejoin up down reset cluster rebuild kubescape-install scan scan-summary scan-compare test-hardening hardening-evidence audit-log-size
+KYVERNO_VERSION := $(strip $(KYVERNO))
+.PHONY: help isolated-network-up isolated-network-down isolated-network-test internet-network-up internet-network-down template-vm-create template-vm-snapshot template-vm-restore-test template-vm-destroy vms vms-status vms-test vms-isolate vms-attach-internet vms-snapshot vms-restore vms-destroy ansible-setup ansible-inventory ansible-apply ansible-test kubectl cilium-install cilium-status cilium-uninstall hubble-ui gateway-api-crds cilium-restart cilium-lb storage-install net-test-u6 sample-app-install sample-app-remove net-test-u8 vms-resize monitoring-secret monitoring-install monitoring-status monitoring-uninstall grafana-password grafana-ui net-test-u7 etcd-snapshot etcd-restore drill-etcd drill-node-drain drill-node-fail drill-node-rejoin up down reset cluster rebuild kubescape-install scan scan-summary scan-compare test-hardening hardening-evidence audit-log-size rbac-audit access-evidence access-apply psa-check kyverno-install kyverno-policies kyverno-status drill-kyverno
 
 help: ## List targets
 	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-28s %s\n", $$1, $$2}'
@@ -228,7 +229,7 @@ scan-compare: ## Show what changed between two saved scans: make scan-compare BE
 	infra/scans/summarize.py --compare $(BEFORE) $(AFTER)
 
 # P2-U2 / P2-U6: tests of the hardening controls (infra/hardening/test.sh). P2-U10 makes this the one command for all controls.
-test-hardening: ## Run the hardening tests, all or one: make test-hardening [CONTROL=anonymous|external-ips|profiling|files|kubelet-tls|tls|pid-limit|seccomp|etcd-encryption|audit]
+test-hardening: ## Run the hardening tests, all or one: make test-hardening [CONTROL=anonymous|external-ips|profiling|files|kubelet-tls|tls|pid-limit|seccomp|etcd-encryption|audit|rbac|psa|kyverno]
 	PROJECT_KUBECONFIG=$(PROJECT_KUBECONFIG) infra/hardening/test.sh $(or $(CONTROL),all)
 
 hardening-evidence: ## P2-U6: read-only evidence for encryption at rest and the audit log (no secret values are printed)
@@ -236,3 +237,38 @@ hardening-evidence: ## P2-U6: read-only evidence for encryption at rest and the 
 
 audit-log-size: ## Show the size and files of the API audit log on the control-plane node
 	@ssh -n -i $(HOME)/.ssh/kubeguard-lab -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR ubuntu@10.77.0.10 'sudo du -sh /var/log/kubernetes/audit; sudo ls -la /var/log/kubernetes/audit; df -h /var/log | tail -1'
+
+# P2-U3 and P2-U4: access control. The RBAC audit only reads; access-apply sets labels and service account settings.
+rbac-audit: ## P2-U3: read-only RBAC audit of the cluster, printed as markdown
+	PROJECT_KUBECONFIG=$(PROJECT_KUBECONFIG) infra/rbac/audit.py
+
+access-evidence: ## P2-U4, P2-U7: evidence for Pod Security Admission and the Kyverno policies (one temporary namespace, deleted at the end)
+	PROJECT_KUBECONFIG=$(PROJECT_KUBECONFIG) infra/hardening/evidence-access.sh
+
+access-apply: ## P2-U3, P2-U4: Pod Security Admission labels (k8s/access/pod-security.conf) and default service account settings
+	PROJECT_KUBECONFIG=$(PROJECT_KUBECONFIG) infra/access/pod-security.sh apply
+	$(KUBECTL_P) apply -f k8s/access/serviceaccounts.yaml
+
+psa-check: ## P2-U4: compare the Pod Security labels in the cluster with k8s/access/pod-security.conf
+	PROJECT_KUBECONFIG=$(PROJECT_KUBECONFIG) infra/access/pod-security.sh check
+
+# P2-U7: Kyverno policy engine. Image pulls need the internet window (the images are cached afterwards).
+kyverno-install: ## Install or upgrade Kyverno (pinned chart) and wait until it is ready
+	env -u KUBECONFIG helm repo add kyverno https://kyverno.github.io/kyverno/ --force-update >/dev/null
+	env -u KUBECONFIG helm --kubeconfig $(PROJECT_KUBECONFIG) upgrade --install kyverno kyverno/kyverno --version $(KYVERNO_VERSION) --namespace kyverno --create-namespace --values k8s/kyverno/values.yaml --wait --timeout 10m
+
+kyverno-policies: ## Apply the Kyverno policies (k8s/kyverno/policies/) and wait until they are ready
+	$(KUBECTL_P) apply -f k8s/kyverno/policies/
+	@for i in $$(seq 1 60); do \
+	  n=$$($(KUBECTL_P) get validatingpolicies.policies.kyverno.io --no-headers 2>/dev/null | wc -l); \
+	  r=$$($(KUBECTL_P) get validatingpolicies.policies.kyverno.io -o jsonpath='{range .items[*]}{.status.conditionStatus.ready}{"\n"}{end}' 2>/dev/null | grep -c true); \
+	  [ "$$n" -gt 0 ] && [ "$$n" = "$$r" ] && { echo "$$r of $$n policies ready"; exit 0; }; sleep 5; done; \
+	echo "policies not ready after 300 s"; $(KUBECTL_P) get validatingpolicies.policies.kyverno.io; exit 1
+
+kyverno-status: ## Show the Kyverno pods, release and policies
+	$(KUBECTL_P) -n kyverno get pods
+	env -u KUBECONFIG helm --kubeconfig $(PROJECT_KUBECONFIG) -n kyverno list
+	$(KUBECTL_P) get validatingpolicies.policies.kyverno.io
+
+drill-kyverno: ## P2-U7 drill: stop Kyverno, show the fail-closed behaviour and the unblock step, start it again (about 2 minutes)
+	PROJECT_KUBECONFIG=$(PROJECT_KUBECONFIG) infra/drills/kyverno.sh drill

@@ -1,0 +1,36 @@
+# P2-U7: no privileged containers outside the system namespaces (decision H4).
+# Pod Security Admission (P2-U4) forbids privileged containers too, but only in namespaces that carry the label.
+# This policy covers every namespace that is not a system namespace, labelled or not. The overlap is intentional.
+apiVersion: policies.kyverno.io/v1
+kind: ValidatingPolicy
+metadata:
+  name: disallow-privileged-containers
+  annotations:
+    policies.kyverno.io/title: Disallow privileged containers
+    policies.kyverno.io/category: Pod Security
+    policies.kyverno.io/severity: high
+    policies.kyverno.io/description: >-
+      A privileged container has almost the same access to the host as a process on the host.
+      Containers, init containers and ephemeral containers may not set securityContext.privileged to true.
+spec:
+  validationActions: [Deny]
+  matchConstraints:
+    namespaceSelector:
+      matchExpressions:
+        - key: kubernetes.io/metadata.name
+          operator: NotIn
+          values: [kube-system, kube-public, kube-node-lease, cilium-secrets, local-path-storage, monitoring, scanners, kyverno]
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: [v1]
+        operations: [CREATE, UPDATE]
+        resources: [pods]
+  autogen:
+    podControllers:
+      controllers: [deployments, daemonsets, statefulsets, jobs, cronjobs]
+  validations:
+    - message: "Privileged containers are not allowed (policy disallow-privileged-containers)."
+      expression: >-
+        object.spec.containers.all(c, !has(c.securityContext) || !has(c.securityContext.privileged) || !c.securityContext.privileged) &&
+        (!has(object.spec.initContainers) || object.spec.initContainers.all(c, !has(c.securityContext) || !has(c.securityContext.privileged) || !c.securityContext.privileged)) &&
+        (!has(object.spec.ephemeralContainers) || object.spec.ephemeralContainers.all(c, !has(c.securityContext) || !has(c.securityContext.privileged) || !c.securityContext.privileged))

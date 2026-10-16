@@ -1,0 +1,34 @@
+# P2-U7: every container outside the system namespaces sets a CPU and a memory limit (decision H4).
+# Without limits one workload can starve the node, which a denial-of-service or cryptomining scenario would use.
+# Requests are not required; the limits are.
+apiVersion: policies.kyverno.io/v1
+kind: ValidatingPolicy
+metadata:
+  name: require-resource-limits
+  annotations:
+    policies.kyverno.io/title: Require CPU and memory limits
+    policies.kyverno.io/category: Best Practices
+    policies.kyverno.io/severity: medium
+    policies.kyverno.io/description: >-
+      Containers and init containers must set resources.limits.cpu and resources.limits.memory.
+spec:
+  validationActions: [Deny]
+  matchConstraints:
+    namespaceSelector:
+      matchExpressions:
+        - key: kubernetes.io/metadata.name
+          operator: NotIn
+          values: [kube-system, kube-public, kube-node-lease, cilium-secrets, local-path-storage, monitoring, scanners, kyverno]
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: [v1]
+        operations: [CREATE, UPDATE]
+        resources: [pods]
+  autogen:
+    podControllers:
+      controllers: [deployments, daemonsets, statefulsets, jobs, cronjobs]
+  validations:
+    - message: "Every container must set CPU and memory limits (policy require-resource-limits)."
+      expression: >-
+        object.spec.containers.all(c, has(c.resources) && has(c.resources.limits) && 'cpu' in c.resources.limits && 'memory' in c.resources.limits) &&
+        (!has(object.spec.initContainers) || object.spec.initContainers.all(c, has(c.resources) && has(c.resources.limits) && 'cpu' in c.resources.limits && 'memory' in c.resources.limits))

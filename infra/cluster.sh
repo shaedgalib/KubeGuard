@@ -5,7 +5,8 @@
 #   down     shut the node VMs down gracefully (frees their RAM; networks and disks stay)
 #   reset    DESTROY the node VMs and create fresh ones from kg-template-vm (needs CONFIRM=yes)
 #   cluster  from clean VMs to the full cluster: Kubernetes, Cilium, load balancer, Gateway API,
-#            storage, monitoring, sample app, the acceptance checks of U5 to U8 and the hardening
+#            storage, monitoring, Kyverno and its policies, sample app, Pod Security labels, the acceptance
+#            checks of U5 to U8 and the hardening
 #            tests of Phase 2 (the hardening itself is part of the Ansible stage)
 #   rebuild  reset + cluster, and the total time against the 40 minute target (needs CONFIRM=yes)
 # Every stage prints its own duration; the log is kept outside the repository.
@@ -123,7 +124,10 @@ do_cluster() {
   stage "Grafana admin Secret"    make monitoring-secret
   stage "monitoring (Prometheus, Grafana)" make monitoring-install
   stage "save the Grafana password locally" save_grafana_password
+  stage "Kyverno (policy engine)" make kyverno-install
+  stage "Kyverno policies"        make kyverno-policies
   stage "sample app"              make sample-app-install
+  stage "Pod Security labels and default service accounts" make access-apply
   stage "check: Cilium status"    make cilium-status
   stage "check: storage, load balancer, Gateway (U6)" make net-test-u6
   stage "check: load balancer and Gateway answer from the host" check_lb_and_gateway

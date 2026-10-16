@@ -55,11 +55,11 @@ Names follow [docs/naming.md](../naming.md). Accepted by the researcher on 2026-
 |---|---|---|---|---|
 | P2-U1 | Baseline scans: kube-bench and kubescape, before any change | Scores saved under `docs/reports/` | `feat/p2-baseline-hardening` | [x] |
 | P2-U2 | Fix CIS findings: kubelet auth, anonymous access, file permissions, API server flags | Re-scan shows each fix | `feat/p2-baseline-hardening` | [x] |
-| P2-U3 | RBAC audit to least privilege | Audit report, no wildcard roles outside system | `feat/p2-access-control` | [ ] |
-| P2-U4 | Pod Security Admission at restricted | Privileged pod rejected | `feat/p2-access-control` | [ ] |
+| P2-U3 | RBAC audit to least privilege | Audit report, no wildcard roles outside system | `feat/p2-access-control` | [x] |
+| P2-U4 | Pod Security Admission at restricted | Privileged pod rejected | `feat/p2-access-control` | [x] |
 | P2-U5 | Default-deny CiliumNetworkPolicy per namespace plus explicit allows | Unlisted traffic dropped, listed traffic passes | `feat/p2-network-security` | [ ] |
 | P2-U6 | etcd encryption at rest, API audit policy, log rotation | Secret unreadable in etcd, audit log present | `feat/p2-baseline-hardening` | [x] |
-| P2-U7 | Kyverno policies: no privileged, limits required, registry allowlist | Each policy blocks its violation | `feat/p2-access-control` | [ ] |
+| P2-U7 | Kyverno policies: no privileged, limits required, registry allowlist | Each policy blocks its violation | `feat/p2-access-control` | [x] |
 | P2-U8 | Service-to-service mTLS (ADR) | mTLS verified between two services | `feat/p2-network-security` | [ ] |
 | P2-U9 | Trivy image scanning and secrets workflow | Vulnerable image flagged, secret decrypts only in cluster | `feat/p2-supply-chain` | [ ] |
 | P2-U10 | Negative tests per control | One passing negative test per policy, runnable via make | `feat/p2-tests-report` | [ ] |
@@ -169,6 +169,54 @@ One entry per finished unit: objective, rationale, deliverables, implementation,
 
 **Status.** Done. Branch `feat/p2-baseline-hardening`. Limits: the key and the log are on the control-plane node.
 
+### P2-U3: RBAC audit and least privilege
+
+**Objective.** Show who can do what in the cluster, remove access that nothing needs, and keep it from growing back unnoticed.
+
+**Rationale.** Helm charts bring their own ClusterRoles, and the defaults are broad: the monitoring stack could read Secrets in every namespace. Least privilege is a CIS section (5.1) and a control that attack scenarios in Phase 3 will test.
+
+**Deliverables.**
+- `infra/rbac/audit.py` (`make rbac-audit`), changes in `k8s/monitoring/values.yaml`, `k8s/access/serviceaccounts.yaml` and `k8s/sample-app/`, the test group `rbac`.
+- [docs/reports/P2-U3-rbac-audit.md](../reports/P2-U3-rbac-audit.md) and [docs/runbooks/access-control.md](../runbooks/access-control.md).
+
+**Implementation.** A read-only script reads roles, bindings, service accounts and pods through the API and prints, for the CIS checks 5.1.1 to 5.1.13, who holds each sensitive capability and in which scope. Three changes followed: Grafana reads ConfigMaps only, in its own namespace; kube-state-metrics no longer collects Secrets and ConfigMaps; default service accounts of workload namespaces do not mount tokens. Accepted with a reason: the two `cluster-admin` groups, the Prometheus operator, the local-path provisioner and the system components.
+
+**Verification.** No role with a wildcard exists outside the built-in roles; `cluster-admin` is bound to the two kubeadm groups only; the Grafana and kube-state-metrics service accounts cannot list Secrets in all namespaces; the monitoring check (24 dashboards, no target down) passes after the change.
+
+**Status.** Done. Branch `feat/p2-access-control`.
+
+### P2-U4: Pod Security Admission
+
+**Objective.** Make the API server refuse pods that break the Pod Security Standards in the namespaces where workloads run.
+
+**Rationale.** A privileged pod, a host namespace or a hostPath volume is the usual first step of a container escape. Pod Security Admission is built in and costs no extra component.
+
+**Deliverables.**
+- `k8s/access/pod-security.conf` and `infra/access/pod-security.sh` (`make access-apply`, `make psa-check`), the test group `psa`, a sample app that complies with `restricted`.
+- [docs/reports/P2-U4-U7-admission-evidence.md](../reports/P2-U4-U7-admission-evidence.md).
+
+**Implementation.** One table lists the level of every namespace: `restricted` for `sample` and `kyverno`, `baseline` for `default`, `privileged` as a documented exemption for the system namespaces (`kube-system`, `cilium-secrets`, `local-path-storage`, `monitoring`, `scanners`). Every namespace also has `audit=restricted`. The sample app moved to a non-root nginx image on port 8080 and sets the restricted security context.
+
+**Verification.** A privileged pod and a pod without the restricted settings are refused in `sample`; a hostPath pod is refused in `default`; a compliant pod is accepted. The sample app and its Hubble flows still work (P1-U8 check).
+
+**Status.** Done. Branch `feat/p2-access-control`. Open point: a namespace created without labels is not covered; a cluster-wide default is not done.
+
+### P2-U7: Kyverno policies
+
+**Objective.** Enforce three rules that Pod Security Admission cannot express together: no privileged containers, CPU and memory limits on every container, and images only from an allowed registry.
+
+**Rationale.** Limits bound what one workload can take from a node; a registry allowlist limits where code comes from; the privileged rule overlaps with Pod Security on purpose, so a namespace without labels is still covered.
+
+**Deliverables.**
+- `k8s/kyverno/values.yaml`, `k8s/kyverno/policies/`, Makefile targets `kyverno-install`, `kyverno-policies`, `kyverno-status`, `drill-kyverno`, `infra/drills/kyverno.sh`, the test group `kyverno`.
+- [ADR-006](../adr/ADR-006-kyverno-cel-policies.md), [docs/reports/P2-U4-U7-admission-evidence.md](../reports/P2-U4-U7-admission-evidence.md).
+
+**Implementation.** Kyverno chart 3.9.1 (v1.19.1), one replica per controller. The policies are `ValidatingPolicy` objects (CEL) with action `Deny`, because the classic `ClusterPolicy` is deprecated and removed in 1.20. System namespaces are excluded in the policies and in the webhook configuration. Kyverno 1.19 lists Kubernetes 1.33 to 1.35 and the cluster runs 1.36, so tests and a drill stand in for the missing compatibility statement.
+
+**Verification.** Each policy refuses its violation and names itself in the message; a Deployment is refused when it is created; compliant pods, an image without a registry part, an image from quay.io and a pod in a system namespace are accepted. The drill shows that a crash fails closed, that a clean stop removes the webhooks, and that Kyverno restores them.
+
+**Status.** Done. Branch `feat/p2-access-control`.
+
 ## Risks
 
 - **A control breaks the cluster.** A wrong API server flag can stop the control plane; default-deny can cut DNS, monitoring or the Gateway. Mitigation: VM and etcd snapshots before each change (H2), small steps, the P1 acceptance checks after each branch, changes through Ansible so they can be reverted and rebuilt.
@@ -191,6 +239,10 @@ Changes to the approved plan during Phase 2. One line each: date, decision numbe
 
 - 2026-10-16, H10 and P2-U10: the negative-test script `infra/hardening/test.sh` and `make test-hardening` start in P2-U2 (tests written first, run on the unhardened cluster); P2-U10 extends them. Reason: each fix needs its test when it is made.
 - 2026-10-16, H3: `make cluster` now ends with `make test-hardening`. Reason: the hardening is part of the Ansible stage, so its tests belong to the rebuild checks.
+- 2026-10-16, H4: Pod Security exemptions are `kube-system`, `cilium-secrets`, `local-path-storage`, `monitoring` and `scanners`, not only the first two. Reason: the local-path helper pods mount host paths, node-exporter needs the host namespaces and host paths, and kube-bench needs hostPID. Each has `audit=restricted`.
+- 2026-10-16, H4 and P2-U7: the Kyverno policies are `ValidatingPolicy` (CEL) objects, not `ClusterPolicy`, and Kyverno 1.19 runs outside its tested Kubernetes range (1.33 to 1.35 against our 1.36). Reason and consequences: ADR-006.
+- 2026-10-16, P2-U4: the sample app uses a non-root image on port 8080 so that its namespace can enforce `restricted`. The Services keep port 80.
+- 2026-10-16, H3: `make cluster` gained the stages Kyverno, Kyverno policies and Pod Security labels (after the sample app).
 
 ## Retrospective (filled at phase exit)
 
