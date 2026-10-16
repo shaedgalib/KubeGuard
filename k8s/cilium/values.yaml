@@ -53,3 +53,18 @@ k8sClientRateLimit:
 # (make gateway-api-crds), otherwise the operator cannot register the controller.
 gatewayAPI:
   enabled: true
+
+# Transparent mutual TLS between pods (P2-U8, ADR-007): ztunnel encryption, beta in Cilium 1.20. It does nothing
+# until a namespace is enrolled with the label io.cilium/mtls-enabled=true. Both ends of a connection must be
+# enrolled, only TCP is covered, and a policy on an enrolled pod sees the tunnel port 15008, not the application
+# port. The key material comes from the Secret cilium-ztunnel-secrets (make ztunnel-secrets, before this install).
+# The proxy is kept off the small control-plane node and sized for the lab; the chart default asks for 512 Mi per node.
+encryption:
+  enabled: true
+  type: ztunnel
+  ztunnel:
+    tolerations: []
+    resources:
+      requests: {cpu: 50m, memory: 128Mi}
+      limits: {memory: 256Mi}
+

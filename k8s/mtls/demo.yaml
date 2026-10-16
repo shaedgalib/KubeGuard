@@ -1,0 +1,86 @@
+# P2-U8: two small services to show mutual TLS between pods (ADR-007). A server and a client in a namespace of their
+# own, on different workers so that their traffic crosses the network and can be captured on a node.
+# The namespace is NOT enrolled here. Enroll it with:  kubectl label namespace mtls-demo io.cilium/mtls-enabled=true
+# (disenroll with the label name followed by a minus sign). make test-hardening CONTROL=mtls does both and checks
+# what the wire shows. The pods follow the restricted Pod Security level and the Kyverno rules (limits, registry).
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: mtls-demo
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted
+---
+apiVersion: v1
+kind: ConfigMap
+metadata: {name: server-page, namespace: mtls-demo}
+data:
+  index.html: "mtls-demo server ok\n"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: server, namespace: mtls-demo}
+spec:
+  replicas: 1
+  selector: {matchLabels: {app: server}}
+  template:
+    metadata: {labels: {app: server}}
+    spec:
+      nodeSelector: {kubernetes.io/hostname: kg-worker-1}
+      automountServiceAccountToken: false
+      securityContext:
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: nginx
+          image: nginxinc/nginx-unprivileged:1.27-alpine
+          ports: [{containerPort: 8080}]
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: {drop: [ALL]}
+            runAsNonRoot: true
+            readOnlyRootFilesystem: true
+          resources:
+            requests: {cpu: 10m, memory: 16Mi}
+            limits: {cpu: 100m, memory: 64Mi}
+          volumeMounts:
+            - {name: page, mountPath: /usr/share/nginx/html}
+            - {name: tmp, mountPath: /tmp}
+      volumes:
+        - name: page
+          configMap: {name: server-page}
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata: {name: server, namespace: mtls-demo}
+spec:
+  selector: {app: server}
+  ports: [{port: 80, targetPort: 8080}]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: client, namespace: mtls-demo}
+spec:
+  replicas: 1
+  selector: {matchLabels: {app: client}}
+  template:
+    metadata: {labels: {app: client}}
+    spec:
+      nodeSelector: {kubernetes.io/hostname: kg-worker-2}
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: busybox
+          image: docker.io/library/busybox:1.37
+          command: [sleep, "3600"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: {drop: [ALL]}
+          resources:
+            requests: {cpu: 10m, memory: 8Mi}
+            limits: {cpu: 50m, memory: 32Mi}
