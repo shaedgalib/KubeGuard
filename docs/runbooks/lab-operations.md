@@ -293,6 +293,10 @@ Own runbook: [rebuild.md](rebuild.md). In short: `make up`, `make down`, `make r
 
 Own runbook: [hardening.md](hardening.md). In short: the `hardening` role is part of `make ansible-apply`; take `make vms-snapshot SNAP=pre-u2` and `make etcd-snapshot` first, then `make ansible-apply ANSIBLE_ARGS="-e hardening_audit_enabled=false -e hardening_encryption_enabled=false"` (U2) and later `make ansible-apply` (U6). Check with `make test-hardening`, scan with `make scan LABEL=<name>`, compare with `make scan-compare`. Scan output and encryption key copies stay outside the repository (`~/.local/share/kubeguard/`).
 
+## 16. Access control (P2-U3, P2-U4, P2-U7)
+
+Own runbook: [access-control.md](access-control.md). In short: `make rbac-audit` (read-only RBAC audit), `make access-apply` (Pod Security labels from `k8s/access/pod-security.conf` and default service account settings), `make kyverno-install` and `make kyverno-policies` (policy engine and its three rules), `make test-hardening CONTROL=rbac|psa|kyverno`, `make drill-kyverno`. Kyverno images need the internet window.
+
 ## Troubleshooting
 
 | Symptom | Check |

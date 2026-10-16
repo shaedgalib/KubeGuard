@@ -14,21 +14,35 @@ spec:
   template:
     metadata: {labels: {app: backend, tier: backend}}
     spec:
+      automountServiceAccountToken: false   # the app never calls the API (CIS 5.1.6)
+      securityContext:
+        seccompProfile: {type: RuntimeDefault}
       containers:
         - name: nginx
-          image: nginx:1.27-alpine
-          ports: [{containerPort: 80}]
+          # Non-root nginx on port 8080: the sample namespace enforces Pod Security "restricted" (P2-U4).
+          image: nginxinc/nginx-unprivileged:1.27-alpine
+          ports: [{containerPort: 8080}]
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: {drop: [ALL]}
+            runAsNonRoot: true
+            readOnlyRootFilesystem: true
+          # CPU and memory limits are required by the Kyverno policy require-resource-limits (P2-U7).
           resources:
             requests: {cpu: 10m, memory: 16Mi}
-            limits: {memory: 64Mi}
-          volumeMounts: [{name: page, mountPath: /usr/share/nginx/html}]
+            limits: {cpu: 100m, memory: 64Mi}
+          volumeMounts:
+            - {name: page, mountPath: /usr/share/nginx/html}
+            - {name: tmp, mountPath: /tmp}
       volumes:
         - name: page
           configMap: {name: backend-page}
+        - name: tmp
+          emptyDir: {}
 ---
 apiVersion: v1
 kind: Service
 metadata: {name: backend, namespace: sample}
 spec:
   selector: {app: backend}
-  ports: [{port: 80, targetPort: 80}]
+  ports: [{port: 80, targetPort: 8080}]

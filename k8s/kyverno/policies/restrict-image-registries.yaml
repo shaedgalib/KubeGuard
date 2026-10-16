@@ -1,0 +1,46 @@
+# P2-U7: images outside the system namespaces come only from an allowed registry (decision H4).
+# A name without a registry part (nginx:1.27, nginxinc/nginx-unprivileged:1.27) means docker.io. The first part
+# of a name counts as a registry when it contains a dot or a colon or is "localhost". To allow another registry,
+# add it to allowedRegistries.
+apiVersion: policies.kyverno.io/v1
+kind: ValidatingPolicy
+metadata:
+  name: restrict-image-registries
+  annotations:
+    policies.kyverno.io/title: Restrict image registries
+    policies.kyverno.io/category: Supply Chain
+    policies.kyverno.io/severity: medium
+    policies.kyverno.io/description: >-
+      Containers, init containers and ephemeral containers may only use images from docker.io, quay.io
+      and registry.k8s.io.
+spec:
+  validationActions: [Deny]
+  matchConstraints:
+    namespaceSelector:
+      matchExpressions:
+        - key: kubernetes.io/metadata.name
+          operator: NotIn
+          values: [kube-system, kube-public, kube-node-lease, cilium-secrets, local-path-storage, monitoring, scanners, kyverno]
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: [v1]
+        operations: [CREATE, UPDATE]
+        resources: [pods]
+  autogen:
+    podControllers:
+      controllers: [deployments, daemonsets, statefulsets, jobs, cronjobs]
+  variables:
+    - name: allowedRegistries
+      expression: "['docker.io', 'quay.io', 'registry.k8s.io']"
+    - name: images
+      expression: >-
+        object.spec.containers.map(c, c.image) +
+        (has(object.spec.initContainers) ? object.spec.initContainers.map(c, c.image) : []) +
+        (has(object.spec.ephemeralContainers) ? object.spec.ephemeralContainers.map(c, c.image) : [])
+  validations:
+    - message: "Images must come from an allowed registry: docker.io, quay.io or registry.k8s.io (policy restrict-image-registries)."
+      expression: >-
+        variables.images.all(i,
+          (i.contains('/') && (i.split('/')[0].contains('.') || i.split('/')[0].contains(':') || i.split('/')[0] == 'localhost'))
+            ? variables.allowedRegistries.exists(r, i.startsWith(r + '/'))
+            : variables.allowedRegistries.exists(r, r == 'docker.io'))
