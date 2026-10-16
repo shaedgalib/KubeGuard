@@ -297,6 +297,10 @@ Own runbook: [hardening.md](hardening.md). In short: the `hardening` role is par
 
 Own runbook: [access-control.md](access-control.md). In short: `make rbac-audit` (read-only RBAC audit), `make access-apply` (Pod Security labels from `k8s/access/pod-security.conf` and default service account settings), `make kyverno-install` and `make kyverno-policies` (policy engine and its three rules), `make test-hardening CONTROL=rbac|psa|kyverno`, `make drill-kyverno`. Kyverno images need the internet window.
 
+## 17. Network policies and mutual TLS (P2-U5, P2-U8)
+
+Own runbook: [network-security.md](network-security.md). In short: `make flows` (who talks to whom, from Hubble), `make policies-audit-on` and `make policies-apply` (try the policies in `k8s/policies/` without dropping anything), `make flows VERDICT=AUDIT` (what would be dropped), `make policies-audit-off` (enforce), `make test-hardening CONTROL=netpol`; `make ztunnel-secrets`, `make cilium-install`, `make cilium-restart` and `make test-hardening CONTROL=mtls` for mutual TLS.
+
 ## Troubleshooting
 
 | Symptom | Check |

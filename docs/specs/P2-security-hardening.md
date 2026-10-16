@@ -243,6 +243,9 @@ Changes to the approved plan during Phase 2. One line each: date, decision numbe
 - 2026-10-16, H4 and P2-U7: the Kyverno policies are `ValidatingPolicy` (CEL) objects, not `ClusterPolicy`, and Kyverno 1.19 runs outside its tested Kubernetes range (1.33 to 1.35 against our 1.36). Reason and consequences: ADR-006.
 - 2026-10-16, P2-U4: the sample app uses a non-root image on port 8080 so that its namespace can enforce `restricted`. The Services keep port 80.
 - 2026-10-16, H3: `make cluster` gained the stages Kyverno, Kyverno policies and Pod Security labels (after the sample app).
+- 2026-10-16, H6: Cilium mutual authentication, the first option of H6, is deprecated in Cilium 1.20 (the pinned version) and removed in 1.21, and it only authenticates. The Cilium option evaluated instead is ztunnel transparent encryption (beta in 1.20): layer 4 mutual TLS per enrolled namespace. Draft decision in ADR-007, proposed until the researcher agrees. Istio ambient and Linkerd stay as the alternatives.
+- 2026-10-16, H5: the network policies cover `sample`, `default`, `kyverno`, `local-path-storage` and `monitoring`; `kube-system`, `cilium-secrets` and `scanners` have none. The method is audit mode first (Hubble `AUDIT` verdicts), then enforcement. The files are drafts by the assistant for the researcher to review.
+- 2026-10-16, H3: `make cluster` gained the stages ztunnel key material (before Cilium) and network policies (after the Pod Security labels).
 
 ## Retrospective (filled at phase exit)
 

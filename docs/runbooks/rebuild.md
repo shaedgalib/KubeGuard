@@ -18,10 +18,10 @@ Five commands run the whole lab. They are thin wrappers over the targets of the 
 2. Node VMs started; the internet window is attached (`internet0`), because packages and images are downloaded.
 3. Ansible installed in `.venv` if missing.
 4. Kubernetes with Ansible: common, containerd, Kubernetes packages, `kubeadm init`, `kubeadm join`, then the hardening role (P2-U2, P2-U6: hardened kubeadm configuration, kubelet settings, file modes, audit policy, encryption of Secrets; see [hardening.md](hardening.md)). The project kubeconfig `~/.kube/kubeguard.kubeconfig` is written again.
-5. Gateway API CRDs, then Cilium and Hubble (the nodes become `Ready`).
+5. Gateway API CRDs, then the ztunnel key material (a Secret, [network-security.md](network-security.md)), then Cilium and Hubble with ztunnel encryption (the nodes become `Ready`).
 6. Load balancer pool and L2 policy, local-path storage.
 7. Monitoring: Grafana admin Secret (a new random password; saved to `~/.config/kubeguard/grafana-admin-password`), then Prometheus and Grafana.
-8. Kyverno and its three policies ([access-control.md](access-control.md); Kyverno images are pulled in the internet window), then the sample app, then the Pod Security labels and the default service account settings.
+8. Kyverno and its three policies ([access-control.md](access-control.md); Kyverno images are pulled in the internet window), then the sample app, then the Pod Security labels and the default service account settings, then the network policies of `k8s/policies/`.
 9. Checks: Cilium status; the storage, load balancer and Gateway test of P1-U6 and a request to each address from the host; the monitoring test (U7); the sample app and Hubble flows (U8); the hardening tests (`make test-hardening`).
 
 A failing stage stops the run, prints the stage times so far and names the stage. Fix the cause and run `make cluster` again: stages that are done change nothing.
